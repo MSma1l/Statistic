@@ -31,7 +31,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       BASE_URL: ${BASE_URL:-http://localhost:8000}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
-      FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL:-admin@statistic.local}
+      FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL:-admin@statistic.app}
       FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD:-admin1234}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:

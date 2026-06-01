@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     FRONTEND_ORIGIN: str = "http://localhost:5173"
 
     # Admin inițial (seed)
-    FIRST_ADMIN_EMAIL: str = "admin@statistic.local"
+    FIRST_ADMIN_EMAIL: str = "admin@statistic.app"
     FIRST_ADMIN_PASSWORD: str = "admin1234"
 
     @property

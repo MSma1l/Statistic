@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Test pixel Statistic</title>
+    <!-- Înlocuiește CHEIA_TA cu site_key-ul real din dashboard -->
+    <script async src="http://localhost:8000/px/t.js" data-site="CHEIA_TA"></script>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 16px; }
+      button { padding: 10px 16px; margin: 6px; border-radius: 10px; border: 1px solid #ccc; cursor: pointer; }
+      .spacer { height: 1200px; }
+    </style>
+  </head>
+  <body>
+    <h1>Pagină de test pentru pixel</h1>
+    <p>Dă click pe butoane și derulează pagina. Apoi vezi datele în dashboard.</p>
+    <button id="btn-cumpara">Cumpără acum</button>
+    <button id="btn-afla">Află mai multe</button>
+    <button onclick="window.statistic('eveniment_custom', { sursa: 'test' })">
+      Trimite eveniment custom
+    </button>
+    <div class="spacer"></div>
+    <p>Sfârșitul paginii (pentru testarea scroll depth).</p>
+  </body>
+</html>

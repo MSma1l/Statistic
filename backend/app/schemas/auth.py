@@ -4,7 +4,9 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # `str`, nu `EmailStr`: e doar identificatorul de login (se potrivește cu DB),
+    # acceptăm și domenii interne precum `.local`.
+    email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=1, max_length=128)
 
 
