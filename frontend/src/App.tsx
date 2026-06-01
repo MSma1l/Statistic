@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import { useAuth } from "./lib/auth";
 import Dashboard from "./pages/Dashboard";
+import Gallery from "./pages/Gallery";
 import Links from "./pages/Links";
 import LinkDetail from "./pages/LinkDetail";
 import Login from "./pages/Login";
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/sites/:id" element={<SiteDetail />} />
         <Route path="/links" element={<Links />} />
         <Route path="/links/:id" element={<LinkDetail />} />
+        <Route path="/gallery" element={<Gallery />} />
         {user.is_admin && <Route path="/settings" element={<Settings />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download, MousePointerClick, QrCode, Save, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  LinkIcon,
+  MousePointerClick,
+  QrCode,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -12,16 +20,30 @@ import {
   YAxis,
 } from "recharts";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
-import { api, API_URL, extractError, type TrackedLink } from "../lib/api";
+import {
+  api,
+  API_URL,
+  extractError,
+  type GalleryList,
+  type TrackedLink,
+} from "../lib/api";
 
 export default function LinkDetail() {
   const { id } = useParams();
   const linkId = Number(id);
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [dest, setDest] = useState("");
-  const [active, setActive] = useState(true);
+  const [form, setForm] = useState({
+    destination_url: "",
+    name: "",
+    location_label: "",
+    description: "",
+    kind: "link" as "link" | "qr",
+    logo_image_id: null as number | null,
+    is_active: true,
+  });
   const [error, setError] = useState("");
+  const [qrVersion, setQrVersion] = useState(0);
 
   const link = useQuery({
     queryKey: ["link", linkId],
@@ -31,20 +53,43 @@ export default function LinkDetail() {
     queryKey: ["link-stats", linkId],
     queryFn: async () => (await api.get(`/api/links/${linkId}/stats`)).data,
   });
+  const gallery = useQuery({
+    queryKey: ["gallery"],
+    queryFn: async () => (await api.get<GalleryList>("/api/gallery")).data,
+  });
 
   useEffect(() => {
     if (link.data) {
-      setDest(link.data.destination_url);
-      setActive(link.data.is_active);
+      setForm({
+        destination_url: link.data.destination_url,
+        name: link.data.name,
+        location_label: link.data.location_label,
+        description: link.data.description,
+        kind: link.data.kind,
+        logo_image_id: link.data.logo_image_id,
+        is_active: link.data.is_active,
+      });
     }
   }, [link.data]);
 
   const saveMut = useMutation({
-    mutationFn: async () =>
-      api.patch(`/api/links/${linkId}`, { destination_url: dest, is_active: active }),
+    mutationFn: async () => {
+      const payload: Record<string, unknown> = {
+        destination_url: form.destination_url,
+        name: form.name,
+        location_label: form.location_label,
+        description: form.description,
+        kind: form.kind,
+        is_active: form.is_active,
+      };
+      if (form.logo_image_id === null) payload.clear_logo = true;
+      else payload.logo_image_id = form.logo_image_id;
+      return api.patch(`/api/links/${linkId}`, payload);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["link", linkId] });
       qc.invalidateQueries({ queryKey: ["links"] });
+      setQrVersion((v) => v + 1); // forțează reîncărcarea imaginii QR
       setError("");
     },
     onError: (err) => setError(extractError(err)),
@@ -59,15 +104,17 @@ export default function LinkDetail() {
   });
 
   async function downloadQr(fmt: "png" | "svg") {
-    const res = await api.get(`/api/links/${linkId}/qr.${fmt}`, {
-      responseType: "blob",
-    });
+    const res = await api.get(`/api/links/${linkId}/qr.${fmt}`, { responseType: "blob" });
     const url = URL.createObjectURL(res.data);
     const a = document.createElement("a");
     a.href = url;
     a.download = `${link.data?.slug || "qr"}.${fmt}`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
   }
 
   if (link.isLoading) return <Spinner />;
@@ -101,7 +148,7 @@ export default function LinkDetail() {
         <div className="card flex flex-col items-center">
           <h2 className="mb-3 w-full font-semibold text-slate-800">QR Code</h2>
           <img
-            src={`${API_URL}/api/links/${linkId}/qr.png`}
+            src={`${API_URL}/api/links/${linkId}/qr.png?v=${qrVersion}`}
             alt="QR"
             className="h-44 w-44 rounded-xl border border-slate-200"
           />
@@ -118,21 +165,111 @@ export default function LinkDetail() {
           </div>
         </div>
 
-        {/* Editare */}
-        <div className="card col-span-2">
-          <h2 className="mb-3 font-semibold text-slate-800">Setări</h2>
-          <label className="label">Destinație (editabilă — slug-ul rămâne pe viață)</label>
-          <input className="input" value={dest} onChange={(e) => setDest(e.target.value)} />
-          <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
+        {/* Editare completă */}
+        <div className="card col-span-2 space-y-3">
+          <h2 className="font-semibold text-slate-800">Editează</h2>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Nume</label>
+              <input className="input" value={form.name} onChange={(e) => set("name", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Locație</label>
+              <input
+                className="input"
+                value={form.location_label}
+                onChange={(e) => set("location_label", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Destinație (slug-ul rămâne pe viață)</label>
             <input
-              type="checkbox"
-              checked={active}
-              onChange={(e) => setActive(e.target.checked)}
+              className="input"
+              value={form.destination_url}
+              onChange={(e) => set("destination_url", e.target.value)}
             />
-            Link activ
-          </label>
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-          <div className="mt-4 flex gap-2">
+          </div>
+
+          <div>
+            <label className="label">Descriere</label>
+            <textarea
+              className="input"
+              rows={2}
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div>
+              <label className="label">Tip</label>
+              <div className="flex gap-2">
+                {(["link", "qr"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => set("kind", k)}
+                    className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm ${
+                      form.kind === k
+                        ? "border-brand-500 bg-brand-50 text-brand-700"
+                        : "border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {k === "link" ? <LinkIcon size={14} /> : <QrCode size={14} />}
+                    {k === "link" ? "Link" : "QR"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="mt-6 flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(e) => set("is_active", e.target.checked)}
+              />
+              Activ
+            </label>
+          </div>
+
+          {/* Logo */}
+          <div>
+            <label className="label">Logo în centrul QR-ului (din galerie)</label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => set("logo_image_id", null)}
+                className={`flex h-14 w-14 items-center justify-center rounded-xl border text-xs ${
+                  form.logo_image_id === null
+                    ? "border-brand-500 bg-brand-50 text-brand-700"
+                    : "border-slate-200 text-slate-400"
+                }`}
+              >
+                Fără
+              </button>
+              {(gallery.data?.images ?? []).map((img) => (
+                <button
+                  key={img.id}
+                  type="button"
+                  onClick={() => set("logo_image_id", img.id)}
+                  className={`h-14 w-14 overflow-hidden rounded-xl border-2 ${
+                    form.logo_image_id === img.id ? "border-brand-500" : "border-transparent"
+                  }`}
+                >
+                  <img
+                    src={`${API_URL}/api/gallery/${img.id}/raw`}
+                    alt={img.filename}
+                    className="h-full w-full object-contain"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex gap-2 pt-1">
             <button className="btn-primary" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
               <Save size={16} /> Salvează
             </button>

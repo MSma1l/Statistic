@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, MousePointerClick, Trash2, Users, Eye, Activity } from "lucide-react";
+import { ArrowLeft, MousePointerClick, Pencil, Trash2, Users, Eye, Activity } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -30,6 +30,8 @@ export default function SiteDetail() {
   const qc = useQueryClient();
   const [days, setDays] = useState(30);
   const [heatPath, setHeatPath] = useState<string>("");
+  const [editing, setEditing] = useState(false);
+  const [edit, setEdit] = useState({ name: "", domain: "" });
 
   const site = useQuery({
     queryKey: ["site", siteId],
@@ -87,6 +89,15 @@ export default function SiteDetail() {
     },
   });
 
+  const updateMut = useMutation({
+    mutationFn: async () => api.patch(`/api/sites/${siteId}`, edit),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["site", siteId] });
+      qc.invalidateQueries({ queryKey: ["sites"] });
+      setEditing(false);
+    },
+  });
+
   if (site.isLoading) return <Spinner />;
   if (!site.data) return <p>Site inexistent.</p>;
 
@@ -101,8 +112,49 @@ export default function SiteDetail() {
 
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{site.data.name}</h1>
-          <p className="text-sm text-slate-500">{site.data.domain || "—"}</p>
+          {editing ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <label className="label">Nume</label>
+                <input
+                  className="input"
+                  value={edit.name}
+                  onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label">Domeniu</label>
+                <input
+                  className="input"
+                  value={edit.domain}
+                  onChange={(e) => setEdit({ ...edit, domain: e.target.value })}
+                />
+              </div>
+              <button className="btn-primary" onClick={() => updateMut.mutate()}>
+                Salvează
+              </button>
+              <button className="btn-ghost" onClick={() => setEditing(false)}>
+                Anulează
+              </button>
+            </div>
+          ) : (
+            <>
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+                {site.data.name}
+                <button
+                  className="text-slate-300 hover:text-brand-600"
+                  title="Editează"
+                  onClick={() => {
+                    setEdit({ name: site.data!.name, domain: site.data!.domain });
+                    setEditing(true);
+                  }}
+                >
+                  <Pencil size={16} />
+                </button>
+              </h1>
+              <p className="text-sm text-slate-500">{site.data.domain || "—"}</p>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex overflow-hidden rounded-xl border border-slate-200">

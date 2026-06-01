@@ -81,18 +81,108 @@ async def create_link(
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Slug-ul este deja folosit")
+    logo_id = await _validate_logo(payload.logo_image_id, user, db)
     link = TrackedLink(
         slug=payload.slug,
         destination_url=payload.destination_url,
         name=clean_text(payload.name),
         description=clean_text(payload.description),
         location_label=clean_text(payload.location_label),
+        kind=payload.kind,
+        logo_image_id=logo_id,
         owner_id=user.id,
     )
     db.add(link)
     await db.flush()
     await db.refresh(link)
     return _to_with_urls(link, 0)
+
+
+@router.get("/overview")
+async def links_overview(
+    days: int = Query(30, ge=1, le=365),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Statistici agregate peste toate linkurile userului (pentru dashboard)."""
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    owned = select(TrackedLink.id).where(TrackedLink.owner_id == user.id).scalar_subquery()
+
+    links_count = await db.scalar(
+        select(func.count()).where(TrackedLink.owner_id == user.id)
+    )
+    total = await db.scalar(select(func.count()).where(LinkVisit.link_id.in_(owned)))
+    scans = await db.scalar(
+        select(func.count()).where(
+            LinkVisit.link_id.in_(owned), LinkVisit.source == "qr"
+        )
+    )
+    clicks = await db.scalar(
+        select(func.count()).where(
+            LinkVisit.link_id.in_(owned), LinkVisit.source == "link"
+        )
+    )
+
+    # Top linkuri (care aduc cele mai multe intrări/lead-uri)
+    top_rows = await db.execute(
+        select(
+            TrackedLink.id,
+            TrackedLink.name,
+            TrackedLink.slug,
+            TrackedLink.location_label,
+            TrackedLink.kind,
+            func.count(LinkVisit.id).label("visits"),
+        )
+        .outerjoin(LinkVisit, LinkVisit.link_id == TrackedLink.id)
+        .where(TrackedLink.owner_id == user.id)
+        .group_by(TrackedLink.id)
+        .order_by(func.count(LinkVisit.id).desc())
+        .limit(8)
+    )
+    top_links = [
+        {
+            "id": r.id,
+            "name": r.name or r.slug,
+            "slug": r.slug,
+            "location_label": r.location_label,
+            "kind": r.kind,
+            "visits": r.visits,
+        }
+        for r in top_rows
+    ]
+
+    # Unde s-au deschis cel mai mult (după locația indicată)
+    loc_rows = await db.execute(
+        select(TrackedLink.location_label, func.count(LinkVisit.id).label("c"))
+        .join(LinkVisit, LinkVisit.link_id == TrackedLink.id)
+        .where(TrackedLink.owner_id == user.id, LinkVisit.created_at >= since)
+        .group_by(TrackedLink.location_label)
+        .order_by(func.count(LinkVisit.id).desc())
+        .limit(8)
+    )
+    by_location = [
+        {"location": r.location_label or "(fără locație)", "count": r.c} for r in loc_rows
+    ]
+
+    # Evoluție în timp (toate intrările pe linkuri)
+    day = func.date_trunc("day", LinkVisit.created_at).label("day")
+    ts_rows = await db.execute(
+        select(day, func.count().label("c"))
+        .where(LinkVisit.link_id.in_(owned), LinkVisit.created_at >= since)
+        .group_by(day)
+        .order_by(day)
+    )
+    timeseries = [{"day": r.day.date().isoformat(), "visits": r.c} for r in ts_rows]
+
+    return {
+        "links_count": links_count or 0,
+        "total": total or 0,
+        "scans": scans or 0,
+        "clicks": clicks or 0,
+        "top_links": top_links,
+        "by_location": by_location,
+        "timeseries": timeseries,
+    }
 
 
 @router.get("/{link_id}", response_model=LinkWithUrls)
@@ -124,6 +214,12 @@ async def update_link(
         link.description = clean_text(payload.description)
     if payload.location_label is not None:
         link.location_label = clean_text(payload.location_label)
+    if payload.kind is not None:
+        link.kind = payload.kind
+    if payload.clear_logo:
+        link.logo_image_id = None
+    elif payload.logo_image_id is not None:
+        link.logo_image_id = await _validate_logo(payload.logo_image_id, user, db)
     if payload.is_active is not None:
         link.is_active = payload.is_active
     await db.flush()
@@ -149,10 +245,8 @@ async def qr_png(
     db: AsyncSession = Depends(get_db),
 ):
     link = await _owned_link(link_id, user, db)
-    img = qrcode.make(_qr_target(link.slug), box_size=10, border=2)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return Response(content=buf.getvalue(), media_type="image/png")
+    logo = await _logo_bytes(link, db)
+    return Response(content=qr_png_bytes(_qr_target(link.slug), logo), media_type="image/png")
 
 
 @router.get("/{link_id}/qr.svg")
@@ -162,10 +256,10 @@ async def qr_svg(
     db: AsyncSession = Depends(get_db),
 ):
     link = await _owned_link(link_id, user, db)
-    img = qrcode.make(_qr_target(link.slug), image_factory=SvgImage, box_size=10, border=2)
-    buf = io.BytesIO()
-    img.save(buf)
-    return Response(content=buf.getvalue(), media_type="image/svg+xml")
+    logo = await _logo_bytes(link, db)
+    return Response(
+        content=qr_svg_bytes(_qr_target(link.slug), logo), media_type="image/svg+xml"
+    )
 
 
 @router.get("/{link_id}/stats")

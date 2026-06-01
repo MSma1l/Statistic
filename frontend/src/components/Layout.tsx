@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Globe,
+  ImageIcon,
   LinkIcon,
   LogOut,
   Settings as SettingsIcon,
@@ -39,6 +40,9 @@ export default function Layout() {
           </NavLink>
           <NavLink to="/links" className={navClass}>
             <LinkIcon size={18} /> Linkuri & QR
+          </NavLink>
+          <NavLink to="/gallery" className={navClass}>
+            <ImageIcon size={18} /> Galerie
           </NavLink>
           {user?.is_admin && (
             <NavLink to="/settings" className={navClass}>

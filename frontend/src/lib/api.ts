@@ -33,11 +33,33 @@ export interface TrackedLink {
   name: string;
   description: string;
   location_label: string;
+  kind: "link" | "qr";
+  logo_image_id: number | null;
   is_active: boolean;
   created_at: string;
   short_url: string;
   qr_url: string;
   total_visits: number;
+}
+
+export interface GalleryImage {
+  id: number;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+export interface GalleryList {
+  images: GalleryImage[];
+  used_bytes: number;
+  limit_bytes: number;
+}
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 export function extractError(err: unknown, fallback = "A apărut o eroare"): string {

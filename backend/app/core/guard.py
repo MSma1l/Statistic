@@ -85,6 +85,15 @@ class SecurityGuardMiddleware:
         path: str = scope.get("path", "")
         relaxed = any(path.startswith(p) for p in _RELAXED_PREFIXES)
 
+        # Nu scanăm corpurile binare (upload de fișiere): datele binare ar declanșa
+        # false-pozitive, iar fișierele sunt validate separat la endpoint.
+        content_type = ""
+        for k, v in scope.get("headers", []):
+            if k == b"content-type":
+                content_type = v.decode("latin-1").lower()
+                break
+        is_binary_body = content_type.startswith("multipart/form-data")
+
         # 1) Scanare query string
         query = scope.get("query_string", b"").decode("latin-1")
         if query and is_malicious(query):
@@ -102,7 +111,7 @@ class SecurityGuardMiddleware:
                 more = message.get("more_body", False)
             body = b"".join(chunks)
 
-            if not relaxed and body:
+            if not relaxed and not is_binary_body and body:
                 text = body.decode("utf-8", "ignore")
                 if is_malicious(text):
                     await self._reject(send)
