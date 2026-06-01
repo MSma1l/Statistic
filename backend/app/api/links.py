@@ -1,17 +1,15 @@
-import io
 from datetime import datetime, timedelta, timezone
 
-import qrcode
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from qrcode.image.svg import SvgImage
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.config import settings
+from app.core.qrgen import qr_png_bytes, qr_svg_bytes
 from app.core.sanitize import clean_text
 from app.database import get_db
-from app.models import LinkVisit, TrackedLink, User
+from app.models import GalleryImage, LinkVisit, TrackedLink, User
 from app.schemas.link import LinkCreate, LinkOut, LinkUpdate, LinkWithUrls
 
 router = APIRouter(prefix="/api/links", tags=["links"])
@@ -39,6 +37,23 @@ async def _owned_link(link_id: int, user: User, db: AsyncSession) -> TrackedLink
     if not link or link.owner_id != user.id:
         raise HTTPException(status_code=404, detail="Link inexistent")
     return link
+
+
+async def _validate_logo(logo_id: int | None, user: User, db: AsyncSession) -> int | None:
+    """Verifică faptul că logo-ul ales aparține utilizatorului."""
+    if logo_id is None:
+        return None
+    img = await db.get(GalleryImage, logo_id)
+    if not img or img.owner_id != user.id:
+        raise HTTPException(status_code=400, detail="Imagine logo inexistentă")
+    return logo_id
+
+
+async def _logo_bytes(link: TrackedLink, db: AsyncSession) -> bytes | None:
+    if not link.logo_image_id:
+        return None
+    img = await db.get(GalleryImage, link.logo_image_id)
+    return img.data if img else None
 
 
 @router.get("", response_model=list[LinkWithUrls])

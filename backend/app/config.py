@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     FIRST_ADMIN_EMAIL: str = "admin@statistic.app"
     FIRST_ADMIN_PASSWORD: str = "admin1234"
 
+    # Galerie: limită totală per utilizator (25 MB)
+    GALLERY_MAX_BYTES: int = 25 * 1024 * 1024
+
     @property
     def cors_origins(self) -> list[str]:
         origins = {self.FRONTEND_ORIGIN, self.BASE_URL}

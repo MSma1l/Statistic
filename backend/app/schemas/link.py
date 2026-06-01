@@ -12,6 +12,16 @@ class LinkCreate(BaseModel):
     name: str = Field(default="", max_length=255)
     description: str = Field(default="", max_length=2000)
     location_label: str = Field(default="", max_length=255)
+    kind: str = Field(default="link")  # "link" sau "qr"
+    logo_image_id: int | None = None
+
+    @field_validator("kind")
+    @classmethod
+    def _validate_kind(cls, v: str) -> str:
+        v = (v or "link").strip().lower()
+        if v not in ("link", "qr"):
+            raise ValueError("Tipul trebuie să fie 'link' sau 'qr'")
+        return v
 
     @field_validator("slug")
     @classmethod
@@ -37,7 +47,20 @@ class LinkUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
     location_label: str | None = Field(default=None, max_length=255)
+    kind: str | None = None
+    logo_image_id: int | None = None
+    clear_logo: bool = False  # pune logo_image_id pe null
     is_active: bool | None = None
+
+    @field_validator("kind")
+    @classmethod
+    def _validate_kind(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip().lower()
+        if v not in ("link", "qr"):
+            raise ValueError("Tipul trebuie să fie 'link' sau 'qr'")
+        return v
 
     @field_validator("destination_url")
     @classmethod
@@ -59,6 +82,8 @@ class LinkOut(BaseModel):
     name: str
     description: str
     location_label: str
+    kind: str
+    logo_image_id: int | None
     is_active: bool
     created_at: datetime
 

@@ -4,13 +4,27 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
 
-from app.api import analytics, auth, collect, links, redirect, sites
+from app.api import analytics, auth, collect, gallery, links, redirect, sites
 from app.config import settings
 from app.core.guard import SecurityGuardMiddleware, limiter
 from app.database import Base, engine
-from app.models import Event, LinkVisit, Site, TrackedLink, User  # noqa: F401
+from app.models import (  # noqa: F401
+    Event,
+    GalleryImage,
+    LinkVisit,
+    Site,
+    TrackedLink,
+    User,
+)
 from app.seed import seed_admin
+
+# Migrări idempotente pentru coloane adăugate ulterior (fără a pierde date).
+_MIGRATIONS = [
+    "ALTER TABLE tracked_links ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'link'",
+    "ALTER TABLE tracked_links ADD COLUMN IF NOT EXISTS logo_image_id INTEGER REFERENCES gallery_images(id) ON DELETE SET NULL",
+]
 
 
 @asynccontextmanager
@@ -18,6 +32,8 @@ async def lifespan(app: FastAPI):
     # Creează tabelele dacă nu există (start fresh, fără migrații manuale)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        for stmt in _MIGRATIONS:
+            await conn.execute(text(stmt))
     await seed_admin()
     yield
 
@@ -50,6 +66,7 @@ app.include_router(auth.router)
 app.include_router(sites.router)
 app.include_router(analytics.router)
 app.include_router(links.router)
+app.include_router(gallery.router)
 app.include_router(collect.router)
 app.include_router(redirect.router)
 

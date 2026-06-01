@@ -25,6 +25,12 @@ class TrackedLink(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     location_label: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    # Tipul ales la creare: "link" sau "qr" (organizatoric; ambele au și link, și QR)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="link")
+    # Logo opțional pentru centrul QR-ului (din galeria personală)
+    logo_image_id: Mapped[int | None] = mapped_column(
+        ForeignKey("gallery_images.id", ondelete="SET NULL"), nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
