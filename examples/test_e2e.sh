@@ -126,7 +126,32 @@ check "Userul 2 NU e admin (creare user) -> 403" 403 \
   "$(sc -b $JAR2 -X POST $BASE/auth/users -H 'Content-Type: application/json' -d '{"email":"x@x.com","password":"123456"}')"
 
 # ---------------------------------------------------------------
-echo "${B}[7] Curățenie (ștergem datele de test)${N}"
+echo "${B}[7] Galerie, tip link/QR, logo & overview${N}"
+# Imagine PNG 8x8 validă (base64) pentru test. Cale RELATIVĂ (curl pe Windows
+# nu gestionează bine căile absolute git-bash).
+PNG=examples/_e2e_logo.png
+printf 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGPUqPjPgA0wYRUdtBIARzoBr/6zkSAAAAAASUVORK5CYII=' | base64 -d > "$PNG"
+IMG=$(curl -s -b $JAR -F "file=@$PNG;type=image/png" $BASE/api/gallery)
+IID=$(printf '%s' "$IMG" | grep -o '"id":[0-9]*' | head -1 | sed 's/"id"://')
+contains "Upload imagine în galerie reușit" "$IMG" '"size_bytes"'
+contains "Galeria raportează limita de 25 MB" "$(curl -s -b $JAR $BASE/api/gallery)" '"limit_bytes":26214400'
+LINK2=$(curl -s -b $JAR -X POST $BASE/api/links -H "Content-Type: application/json" \
+  -d "{\"slug\":\"e2e-qr-logo\",\"destination_url\":\"https://example.com\",\"kind\":\"qr\",\"logo_image_id\":$IID}")
+LID2=$(printf '%s' "$LINK2" | grep -o '"id":[0-9]*' | head -1 | sed 's/"id"://')
+contains "Link creat cu tip 'qr'" "$LINK2" '"kind":"qr"'
+contains "Link creat cu logo asociat" "$LINK2" "\"logo_image_id\":$IID"
+check "QR PNG cu logo -> 200" 200 "$(sc -b $JAR $BASE/api/links/$LID2/qr.png)"
+contains "QR SVG cu logo conține embed base64" "$(curl -s -b $JAR $BASE/api/links/$LID2/qr.svg)" "data:image/png;base64"
+OV=$(curl -s -b $JAR "$BASE/api/links/overview?days=30")
+contains "Overview are top_links" "$OV" "top_links"
+contains "Overview are by_location (unde s-au deschis)" "$OV" "by_location"
+# curățăm linkul + imaginea
+curl -s -b $JAR -X DELETE $BASE/api/links/$LID2 >/dev/null
+check "Ștergere imagine galerie -> 204" 204 "$(sc -b $JAR -X DELETE $BASE/api/gallery/$IID)"
+rm -f "$PNG"
+
+# ---------------------------------------------------------------
+echo "${B}[8] Curățenie (ștergem datele de test)${N}"
 check "Ștergere link -> 204" 204 "$(sc -b $JAR -X DELETE $BASE/api/links/$LID)"
 check "Ștergere site -> 204" 204 "$(sc -b $JAR -X DELETE $BASE/api/sites/$SID)"
 # ștergem userul 2 (luăm id-ul din lista de utilizatori)

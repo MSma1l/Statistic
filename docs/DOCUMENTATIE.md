@@ -133,15 +133,27 @@ Fiecare element are un **slug** care **nu se schimbă niciodată** (ex. `promo-v
 ### 5.2 Creare
 
 În **Linkuri & QR** → **Creează**:
+- **Tip** — alegi dacă e **Link scurt** sau **QR cod** (ambele primesc și link, și QR; tipul e modul în care îl gândești și organizezi).
 - **Slug** — personalizat (litere mici, cifre, liniuțe).
 - **Destinație** — unde redirecționează (http/https).
 - **Nume** și **Locație** — ca să știi unde l-ai pus (ex. „Afiș stație autobuz").
+- **Logo** (la tip QR) — opțional, alegi o imagine din galerie care se pune în **centrul QR-ului**.
 
-### 5.3 Statistici (pagina linkului)
+### 5.3 Statistici & editare (pagina linkului)
 
 - Total intrări, **scanări QR** vs **click-uri pe link** (separate, pentru că QR-ul folosește ruta `/q/` și linkul `/l/`).
 - Grafic de intrări în timp, dispozitive, surse.
-- Descarci QR-ul ca **PNG** sau **SVG**.
+- Descarci QR-ul ca **PNG** sau **SVG** (cu logo dacă ai ales unul).
+- **Editezi orice**: nume, locație, descriere, destinație, tip, logo, activ/inactiv. Slug-ul rămâne fix (QR valabil pe viață). Poți și **șterge** linkul.
+
+### 5.4 Galerie de imagini (logo pentru QR)
+
+În **Galerie** îți încarci imaginile (logo-uri) care apar la mijlocul QR-urilor.
+- Formate imagine (PNG, JPG, SVG raster etc.), descărcabile ulterior ca logo în QR (PNG/SVG).
+- **Limită: 25 MB în total** per cont. Bara de sus arată cât spațiu ai folosit.
+- Ștergi orice imagine; dacă era folosită ca logo pe un QR, acel QR rămâne valid (doar fără logo).
+
+> QR-ul cu logo folosește corecție de eroare ridicată (~30%), deci rămâne **scanabil** chiar cu imaginea în centru.
 
 ---
 
