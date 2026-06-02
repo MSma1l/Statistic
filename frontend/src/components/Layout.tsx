@@ -1,13 +1,17 @@
 import {
+  ArrowLeftRight,
   BarChart3,
   Globe,
   ImageIcon,
   LinkIcon,
   LogOut,
   Settings as SettingsIcon,
+  UserCircle,
 } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useState } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { can, canLinksArea } from "../lib/api";
+import { getSavedAccounts } from "../lib/accounts";
 import { useAuth } from "../lib/auth";
 
 function navClass({ isActive }: { isActive: boolean }) {
@@ -20,7 +24,29 @@ function navClass({ isActive }: { isActive: boolean }) {
 }
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
+  const navigate = useNavigate();
+  const [showSwitch, setShowSwitch] = useState(false);
+  const [switching, setSwitching] = useState(false);
+
+  const others = getSavedAccounts().filter(
+    (a) => a.email.toLowerCase() !== user?.email.toLowerCase()
+  );
+
+  async function switchTo(email: string, password: string) {
+    setSwitching(true);
+    try {
+      await login(email, password);
+      setShowSwitch(false);
+      navigate("/");
+    } catch {
+      alert(
+        "Nu am putut intra în acest cont (parola s-a schimbat?). Deloghează-te și loghează-te din nou."
+      );
+    } finally {
+      setSwitching(false);
+    }
+  }
 
   return (
     <div className="flex h-full">
@@ -63,6 +89,34 @@ export default function Layout() {
             {user?.full_name || user?.email}
           </div>
           <div className="mb-3 px-2 text-xs text-slate-400">{user?.email}</div>
+
+          {/* Comutare rapidă între conturi salvate */}
+          {others.length > 0 && (
+            <div className="mb-2">
+              <button
+                onClick={() => setShowSwitch((s) => !s)}
+                className="btn-ghost w-full"
+              >
+                <ArrowLeftRight size={16} /> Schimbă cont
+              </button>
+              {showSwitch && (
+                <div className="mt-2 space-y-1">
+                  {others.map((a) => (
+                    <button
+                      key={a.email}
+                      disabled={switching}
+                      onClick={() => switchTo(a.email, a.password)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                    >
+                      <UserCircle size={18} className="text-brand-500" />
+                      <span className="truncate">{a.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <button onClick={() => logout()} className="btn-ghost w-full">
             <LogOut size={16} /> Delogare
           </button>

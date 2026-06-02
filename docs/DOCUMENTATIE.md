@@ -143,7 +143,8 @@ Fiecare element are un **slug** care **nu se schimbă niciodată** (ex. `promo-v
 
 - Total intrări, **scanări QR** vs **click-uri pe link** (separate, pentru că QR-ul folosește ruta `/q/` și linkul `/l/`).
 - Grafic de intrări în timp, dispozitive, surse.
-- Descarci QR-ul ca **PNG** sau **SVG** (cu logo dacă ai ales unul).
+- QR-ul e afișat **mare**; îl poți **descărca** (PNG/SVG, rezoluție mare) sau **copia imaginea** direct în clipboard (butonul „Copiază imaginea").
+- Logo-ul (dacă l-ai ales) e integrat frumos: card alb cu colțuri rotunjite + logo rotunjit în centru.
 - **Editezi orice**: nume, locație, descriere, destinație, tip, logo, activ/inactiv. Slug-ul rămâne fix (QR valabil pe viață). Poți și **șterge** linkul.
 
 ### 5.4 Galerie de imagini (logo pentru QR)
@@ -165,6 +166,7 @@ Fiecare element are un **slug** care **nu se schimbă niciodată** (ex. `promo-v
 | **Sesiune** | JWT pus într-un cookie **httpOnly** → JavaScript-ul din pagină nu poate citi tokenul (protecție anti furt prin XSS). |
 | **Conturi pe invitație** | Nu există înregistrare publică. Adminul creează conturi din pagina *Utilizatori*. Fiecare user vede **doar datele lui**. |
 | **Permisiuni per utilizator** | La creare (sau editare) setezi exact ce poate accesa fiecare cont. Vezi secțiunea 6.1. |
+| **Login rapid / comutare cont** | Poți salva conturi pe acest dispozitiv (bifa de la login) și intri cu un click; din bara laterală sari rapid între ele („Schimbă cont"). Parola e stocată **local în browser** — folosește doar pe dispozitive personale. |
 | **Guard SQLi/XSS** | Un middleware scanează fiecare cerere (query + body) și **blochează cu 400** tipare de injection (`OR 1=1`, `UNION SELECT`, `<script>`, `javascript:` etc.). |
 | **Query parametrizat** | Tot accesul la DB e prin SQLAlchemy ORM → fără concatenare de SQL → fără SQL injection clasic. |
 | **Sanitizare** | Textele introduse (nume, descrieri) sunt curățate de HTML cu `bleach` înainte de stocare. |
@@ -272,7 +274,8 @@ users ──┬──< sites ──< events               (un user are mai multe
 | `POSTGRES_PORT` | portul DB pe host (intern e mereu 5432) |
 | `BACKEND_PORT` / `FRONTEND_PORT` | porturile pe host |
 | `JWT_SECRET` | **secret pentru semnarea tokenurilor — schimbă-l!** |
-| `BASE_URL` | URL-ul public al backend-ului (intră în snippet, linkuri, QR) |
+| `BASE_URL` | URL-ul backend-ului (API) |
+| `PUBLIC_BASE_URL` | **domeniul scurt, stabil** pentru linkuri/QR/pixel. Setează-l o dată (ex. `https://qr.domeniul-tau.ro`) și nu-l mai schimba → QR-urile printate rămân valide pe viață. Gol = folosește `BASE_URL`. |
 | `FRONTEND_ORIGIN` | originea dashboard-ului (pentru CORS) |
 | `COOKIE_SECURE` | `true` doar pe HTTPS (producție) |
 | `FIRST_ADMIN_EMAIL/PASSWORD` | adminul creat automat la prima pornire |
