@@ -2,19 +2,21 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_cap
 from app.config import settings
 from app.core.sanitize import clean_text
 from app.database import get_db
 from app.models import Site, User
 from app.schemas.site import SiteCreate, SiteOut, SiteUpdate, SiteWithSnippet
 
-router = APIRouter(prefix="/api/sites", tags=["sites"])
+router = APIRouter(
+    prefix="/api/sites", tags=["sites"], dependencies=[Depends(require_cap("sites"))]
+)
 
 
 def build_snippet(site_key: str) -> str:
     return (
-        f'<script async src="{settings.BASE_URL}/px/t.js" '
+        f'<script async src="{settings.public_url}/px/t.js" '
         f'data-site="{site_key}"></script>'
     )
 

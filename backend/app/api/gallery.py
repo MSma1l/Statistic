@@ -5,13 +5,15 @@ from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_links_area
 from app.config import settings
 from app.database import get_db
 from app.models import GalleryImage, User
 from app.schemas.gallery import GalleryImageOut, GalleryList
 
-router = APIRouter(prefix="/api/gallery", tags=["gallery"])
+router = APIRouter(
+    prefix="/api/gallery", tags=["gallery"], dependencies=[Depends(require_links_area)]
+)
 
 
 async def _used_bytes(user_id: int, db: AsyncSession) -> int:

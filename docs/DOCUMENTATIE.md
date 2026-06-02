@@ -164,6 +164,7 @@ Fiecare element are un **slug** care **nu se schimbă niciodată** (ex. `promo-v
 | **Parole** | hash-uite cu **argon2** (nu se stochează niciodată în clar). |
 | **Sesiune** | JWT pus într-un cookie **httpOnly** → JavaScript-ul din pagină nu poate citi tokenul (protecție anti furt prin XSS). |
 | **Conturi pe invitație** | Nu există înregistrare publică. Adminul creează conturi din pagina *Utilizatori*. Fiecare user vede **doar datele lui**. |
+| **Permisiuni per utilizator** | La creare (sau editare) setezi exact ce poate accesa fiecare cont. Vezi secțiunea 6.1. |
 | **Guard SQLi/XSS** | Un middleware scanează fiecare cerere (query + body) și **blochează cu 400** tipare de injection (`OR 1=1`, `UNION SELECT`, `<script>`, `javascript:` etc.). |
 | **Query parametrizat** | Tot accesul la DB e prin SQLAlchemy ORM → fără concatenare de SQL → fără SQL injection clasic. |
 | **Sanitizare** | Textele introduse (nume, descrieri) sunt curățate de HTML cu `bleach` înainte de stocare. |
@@ -171,6 +172,24 @@ Fiecare element are un **slug** care **nu se schimbă niciodată** (ex. `promo-v
 | **Security headers** | CSP, X-Frame-Options, X-Content-Type-Options etc. pe răspunsuri. |
 
 ---
+
+### 6.1 Permisiuni per utilizator
+
+Când creezi un utilizator (sau îl editezi din *Utilizatori → Permisiuni*), alegi ce poate accesa. Există **presetări** rapide + bifaje fine:
+
+| Preset | Site/Pixel | Linkuri | QR | Admin |
+|--------|:---:|:---:|:---:|:---:|
+| **Administrator** | ✓ | ✓ | ✓ | ✓ (gestionează utilizatori) |
+| **Tot (premium)** | ✓ | ✓ | ✓ | — |
+| **Doar site (pixel)** | ✓ | — | — | — |
+| **Link + QR** | — | ✓ | ✓ | — |
+| **Doar QR** | — | — | ✓ | — |
+| **Doar Link** | — | ✓ | — | — |
+
+- Permisiunile sunt impuse **și pe server** (nu doar ascunse în interfață): un user fără dreptul respectiv primește **403** la API.
+- Meniul și paginile la care nu are acces nu apar în dashboard-ul lui.
+- „Doar QR" poate crea/vedea doar elemente de tip QR; „Doar Link" doar de tip Link.
+- Galeria e disponibilă oricui are Link sau QR (logo-urile sunt pentru QR-uri).
 
 ## 7. Referință API (principalele endpoint-uri)
 
@@ -183,7 +202,8 @@ Fiecare element are un **slug** care **nu se schimbă niciodată** (ex. `promo-v
 | POST | `/auth/logout` | Logout. |
 | GET | `/auth/me` | Cine sunt eu. |
 | GET | `/auth/users` | Listă utilizatori (admin). |
-| POST | `/auth/users` | Creează utilizator (admin). |
+| POST | `/auth/users` | Creează utilizator cu permisiuni (admin). |
+| PATCH | `/auth/users/{id}` | Modifică permisiunile / activarea (admin). |
 | DELETE | `/auth/users/{id}` | Șterge utilizator (admin). |
 
 ### Site-uri (pixel)
@@ -201,10 +221,19 @@ Fiecare element are un **slug** care **nu se schimbă niciodată** (ex. `promo-v
 ### Linkuri & QR
 | Metodă | Rută | Descriere |
 |--------|------|-----------|
-| GET/POST | `/api/links` | Listă / creare. |
+| GET/POST | `/api/links` | Listă / creare (cu `kind` și `logo_image_id`). |
+| GET | `/api/links/overview` | Statistici agregate pentru dashboard (top linkuri, locații, evoluție). |
 | GET/PATCH/DELETE | `/api/links/{id}` | Detalii / editare / ștergere. |
 | GET | `/api/links/{id}/stats` | Statistici. |
-| GET | `/api/links/{id}/qr.png` / `qr.svg` | Imaginea QR. |
+| GET | `/api/links/{id}/qr.png` / `qr.svg` | Imaginea QR (cu logo dacă e setat). |
+
+### Galerie (logo-uri QR)
+| Metodă | Rută | Descriere |
+|--------|------|-----------|
+| GET | `/api/gallery` | Listă imagini + spațiu folosit / limită (25 MB). |
+| POST | `/api/gallery` | Încarcă o imagine (multipart). |
+| GET | `/api/gallery/{id}/raw` | Conținutul imaginii. |
+| DELETE | `/api/gallery/{id}` | Șterge imaginea. |
 
 ### Public (fără autentificare)
 | Metodă | Rută | Descriere |
@@ -219,17 +248,19 @@ Fiecare element are un **slug** care **nu se schimbă niciodată** (ex. `promo-v
 ## 8. Modelul de date
 
 ```
-users ──┬──< sites ──< events          (un user are mai multe site-uri, fiecare cu evenimente)
-        └──< tracked_links ──< link_visits   (un user are mai multe linkuri, fiecare cu vizite)
+users ──┬──< sites ──< events               (un user are mai multe site-uri, fiecare cu evenimente)
+        ├──< tracked_links ──< link_visits   (un user are mai multe linkuri, fiecare cu vizite)
+        └──< gallery_images                  (imagini personale; un link poate folosi una ca logo)
 ```
 
 | Tabel | Rol | Câmpuri cheie |
 |-------|-----|---------------|
-| `users` | conturi | email, password_hash (argon2), is_admin |
+| `users` | conturi | email, password_hash (argon2), is_admin, **can_sites / can_links / can_qr** |
 | `sites` | site-uri urmărite | site_key (cheia din snippet), owner_id |
 | `events` | evenimente pixel | type, path, x_pct/y_pct, visitor_id, session_id |
-| `tracked_links` | linkuri/QR | slug (unic, permanent), destination_url, location_label |
+| `tracked_links` | linkuri/QR | slug (unic, permanent), destination_url, location_label, **kind** (link/qr), **logo_image_id** |
 | `link_visits` | intrări pe linkuri | source (link/qr), device_type, ip_hash |
+| `gallery_images` | imagini personale (logo QR) | filename, content_type, size_bytes, data (binar) |
 
 ---
 

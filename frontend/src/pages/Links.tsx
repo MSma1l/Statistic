@@ -6,10 +6,12 @@ import { CopyButton, EmptyState, PageHeader, Spinner } from "../components/ui";
 import {
   api,
   API_URL,
+  can,
   extractError,
   type GalleryList,
   type TrackedLink,
 } from "../lib/api";
+import { useAuth } from "../lib/auth";
 
 const EMPTY = {
   slug: "",
@@ -23,8 +25,14 @@ const EMPTY = {
 
 export default function Links() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canLink = can(user, "links");
+  const canQr = can(user, "qr");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY });
+  const [form, setForm] = useState({
+    ...EMPTY,
+    kind: (canLink ? "link" : "qr") as "link" | "qr",
+  });
   const [error, setError] = useState("");
 
   const { data: links, isLoading } = useQuery({
@@ -42,7 +50,7 @@ export default function Links() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["links"] });
       setShowForm(false);
-      setForm({ ...EMPTY });
+      setForm({ ...EMPTY, kind: canLink ? "link" : "qr" });
       setError("");
     },
     onError: (err) => setError(extractError(err)),
@@ -72,7 +80,9 @@ export default function Links() {
           <div>
             <label className="label">Tip</label>
             <div className="flex gap-2">
-              {(["link", "qr"] as const).map((k) => (
+              {(["link", "qr"] as const)
+                .filter((k) => (k === "link" ? canLink : canQr))
+                .map((k) => (
                 <button
                   key={k}
                   type="button"

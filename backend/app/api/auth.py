@@ -8,7 +8,12 @@ from app.core.guard import limiter
 from app.core.security import create_access_token, hash_password, verify_password
 from app.database import get_db
 from app.models import User
-from app.schemas.auth import LoginRequest, UserCreate, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    UserCreate,
+    UserOut,
+    UserPermissionsUpdate,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -85,8 +90,34 @@ async def create_user(
         full_name=payload.full_name,
         password_hash=hash_password(payload.password),
         is_admin=payload.is_admin,
+        can_sites=payload.can_sites,
+        can_links=payload.can_links,
+        can_qr=payload.can_qr,
     )
     db.add(user)
+    await db.flush()
+    await db.refresh(user)
+    return user
+
+
+@router.patch("/users/{user_id}", response_model=UserOut)
+async def update_user_permissions(
+    user_id: int,
+    payload: UserPermissionsUpdate,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilizator inexistent")
+    if user_id == admin.id and payload.is_admin is False:
+        raise HTTPException(
+            status_code=400, detail="Nu îți poți retrage propriile drepturi de admin"
+        )
+    for field in ("is_admin", "can_sites", "can_links", "can_qr", "is_active"):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(user, field, value)
     await db.flush()
     await db.refresh(user)
     return user

@@ -151,7 +151,27 @@ check "Ștergere imagine galerie -> 204" 204 "$(sc -b $JAR -X DELETE $BASE/api/g
 rm -f "$PNG"
 
 # ---------------------------------------------------------------
-echo "${B}[8] Curățenie (ștergem datele de test)${N}"
+echo "${B}[8] Permisiuni per utilizator${N}"
+JAR3=$(mktemp)
+PU="e2e-perm@test.com"
+curl -s -b $JAR -X POST $BASE/auth/users -H "Content-Type: application/json" \
+  -d "{\"email\":\"$PU\",\"full_name\":\"Doar QR\",\"password\":\"parola123\",\"is_admin\":false,\"can_sites\":false,\"can_links\":false,\"can_qr\":true}" >/dev/null
+curl -s -c $JAR3 -X POST $BASE/auth/login -H "Content-Type: application/json" \
+  -d "{\"email\":\"$PU\",\"password\":\"parola123\"}" >/dev/null
+check "User 'doar QR' NU accesează site-uri -> 403" 403 "$(sc -b $JAR3 $BASE/api/sites)"
+check "User 'doar QR' accesează galeria -> 200" 200 "$(sc -b $JAR3 $BASE/api/gallery)"
+check "User 'doar QR' NU poate crea tip 'link' -> 403" 403 \
+  "$(sc -b $JAR3 -X POST $BASE/api/links -H 'Content-Type: application/json' -d '{"slug":"e2e-perm-l","destination_url":"https://x.com","kind":"link"}')"
+check "User 'doar QR' POATE crea tip 'qr' -> 201" 201 \
+  "$(sc -b $JAR3 -X POST $BASE/api/links -H 'Content-Type: application/json' -d '{"slug":"e2e-perm-q","destination_url":"https://x.com","kind":"qr"}')"
+PLID=$(curl -s -b $JAR3 $BASE/api/links | grep -o '"id":[0-9]*' | head -1 | sed 's/"id"://')
+[ -n "$PLID" ] && curl -s -b $JAR3 -X DELETE $BASE/api/links/$PLID >/dev/null
+PUID=$(curl -s -b $JAR $BASE/auth/users | grep -o "{[^}]*$PU[^}]*}" | grep -o '"id":[0-9]*' | head -1 | sed 's/"id"://')
+[ -n "$PUID" ] && check "Ștergere user permisiuni -> 204" 204 "$(sc -b $JAR -X DELETE $BASE/auth/users/$PUID)"
+rm -f $JAR3
+
+# ---------------------------------------------------------------
+echo "${B}[9] Curățenie (ștergem datele de test)${N}"
 check "Ștergere link -> 204" 204 "$(sc -b $JAR -X DELETE $BASE/api/links/$LID)"
 check "Ștergere site -> 204" 204 "$(sc -b $JAR -X DELETE $BASE/api/sites/$SID)"
 # ștergem userul 2 (luăm id-ul din lista de utilizatori)

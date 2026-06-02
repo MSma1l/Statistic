@@ -7,6 +7,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
+import { can, canLinksArea } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
 function navClass({ isActive }: { isActive: boolean }) {
@@ -35,15 +36,21 @@ export default function Layout() {
           <NavLink to="/" end className={navClass}>
             <BarChart3 size={18} /> Tablou de bord
           </NavLink>
-          <NavLink to="/sites" className={navClass}>
-            <Globe size={18} /> Site-uri (Pixel)
-          </NavLink>
-          <NavLink to="/links" className={navClass}>
-            <LinkIcon size={18} /> Linkuri & QR
-          </NavLink>
-          <NavLink to="/gallery" className={navClass}>
-            <ImageIcon size={18} /> Galerie
-          </NavLink>
+          {can(user, "sites") && (
+            <NavLink to="/sites" className={navClass}>
+              <Globe size={18} /> Site-uri (Pixel)
+            </NavLink>
+          )}
+          {canLinksArea(user) && (
+            <>
+              <NavLink to="/links" className={navClass}>
+                <LinkIcon size={18} /> Linkuri & QR
+              </NavLink>
+              <NavLink to="/gallery" className={navClass}>
+                <ImageIcon size={18} /> Galerie
+              </NavLink>
+            </>
+          )}
           {user?.is_admin && (
             <NavLink to="/settings" className={navClass}>
               <SettingsIcon size={18} /> Utilizatori

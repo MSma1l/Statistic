@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
+import { can, canLinksArea } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import Dashboard from "./pages/Dashboard";
 import Gallery from "./pages/Gallery";
@@ -34,11 +35,11 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/sites" element={<Sites />} />
-        <Route path="/sites/:id" element={<SiteDetail />} />
-        <Route path="/links" element={<Links />} />
-        <Route path="/links/:id" element={<LinkDetail />} />
-        <Route path="/gallery" element={<Gallery />} />
+        {can(user, "sites") && <Route path="/sites" element={<Sites />} />}
+        {can(user, "sites") && <Route path="/sites/:id" element={<SiteDetail />} />}
+        {canLinksArea(user) && <Route path="/links" element={<Links />} />}
+        {canLinksArea(user) && <Route path="/links/:id" element={<LinkDetail />} />}
+        {canLinksArea(user) && <Route path="/gallery" element={<Gallery />} />}
         {user.is_admin && <Route path="/settings" element={<Settings />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

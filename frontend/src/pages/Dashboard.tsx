@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { PageHeader, StatCard } from "../components/ui";
-import { api, type Site } from "../lib/api";
+import { api, can, canLinksArea, type Site } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
 interface Overview {
@@ -26,12 +26,16 @@ interface Overview {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const showSites = can(user, "sites");
+  const showLinks = canLinksArea(user);
   const sites = useQuery({
     queryKey: ["sites"],
+    enabled: showSites,
     queryFn: async () => (await api.get<Site[]>("/api/sites")).data,
   });
   const ov = useQuery({
     queryKey: ["links-overview"],
+    enabled: showLinks,
     queryFn: async () => (await api.get<Overview>("/api/links/overview?days=30")).data,
   });
 
@@ -43,13 +47,28 @@ export default function Dashboard() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Site-uri urmărite" value={sites.data?.length ?? "—"} icon={<Globe size={18} />} />
-        <StatCard label="Linkuri & QR" value={ov.data?.links_count ?? "—"} icon={<LinkIcon size={18} />} />
-        <StatCard label="Total intrări" value={ov.data?.total ?? "—"} icon={<MousePointerClick size={18} />} />
-        <StatCard label="Scanări QR" value={ov.data?.scans ?? "—"} icon={<QrCode size={18} />} />
+        {showSites && (
+          <StatCard label="Site-uri urmărite" value={sites.data?.length ?? "—"} icon={<Globe size={18} />} />
+        )}
+        {showLinks && (
+          <>
+            <StatCard label="Linkuri & QR" value={ov.data?.links_count ?? "—"} icon={<LinkIcon size={18} />} />
+            <StatCard label="Total intrări" value={ov.data?.total ?? "—"} icon={<MousePointerClick size={18} />} />
+            <StatCard label="Scanări QR" value={ov.data?.scans ?? "—"} icon={<QrCode size={18} />} />
+          </>
+        )}
       </div>
 
+      {!showLinks && (
+        <div className="card text-sm text-slate-500">
+          Contul tău are acces la {showSites ? "statistica pe site-uri (pixel)" : "secțiuni limitate"}.
+          Folosește meniul din stânga.
+        </div>
+      )}
+
       {/* Evoluție intrări */}
+      {showLinks && (
+      <>
       <div className="card mb-6">
         <h2 className="mb-4 font-semibold text-slate-800">Intrări pe linkuri (în timp)</h2>
         <ResponsiveContainer width="100%" height={240}>
@@ -113,6 +132,8 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

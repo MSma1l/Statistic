@@ -24,6 +24,9 @@ from app.seed import seed_admin
 _MIGRATIONS = [
     "ALTER TABLE tracked_links ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'link'",
     "ALTER TABLE tracked_links ADD COLUMN IF NOT EXISTS logo_image_id INTEGER REFERENCES gallery_images(id) ON DELETE SET NULL",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_sites BOOLEAN NOT NULL DEFAULT true",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_links BOOLEAN NOT NULL DEFAULT true",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_qr BOOLEAN NOT NULL DEFAULT true",
 ]
 
 

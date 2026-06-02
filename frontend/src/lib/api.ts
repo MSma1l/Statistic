@@ -13,8 +13,23 @@ export interface User {
   email: string;
   full_name: string;
   is_admin: boolean;
+  can_sites: boolean;
+  can_links: boolean;
+  can_qr: boolean;
   is_active: boolean;
   created_at: string;
+}
+
+/** Capabilitate efectivă: adminul le are pe toate. */
+export function can(user: User | null, cap: "sites" | "links" | "qr"): boolean {
+  if (!user) return false;
+  if (user.is_admin) return true;
+  return cap === "sites" ? user.can_sites : cap === "links" ? user.can_links : user.can_qr;
+}
+
+/** Are acces la zona Linkuri/QR/Galerie (cel puțin una). */
+export function canLinksArea(user: User | null): boolean {
+  return can(user, "links") || can(user, "qr");
 }
 
 export interface Site {

@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     # URL-uri
     BASE_URL: str = "http://localhost:8000"
     FRONTEND_ORIGIN: str = "http://localhost:5173"
+    # Domeniul PUBLIC, scurt și stabil, folosit DOAR pentru linkuri scurte, QR și
+    # snippetul pixel. Setează-l o dată (ex: https://qr.domeniul-tau.ro) și nu-l
+    # mai schimba, ca QR-urile deja printate să rămână valide pe viață.
+    # Gol => se folosește BASE_URL.
+    PUBLIC_BASE_URL: str = ""
+
+    @property
+    def public_url(self) -> str:
+        return (self.PUBLIC_BASE_URL or self.BASE_URL).rstrip("/")
 
     # Admin inițial (seed)
     FIRST_ADMIN_EMAIL: str = "admin@statistic.app"

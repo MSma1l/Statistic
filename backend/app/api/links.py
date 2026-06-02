@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, has_cap, require_links_area
 from app.config import settings
 from app.core.qrgen import qr_png_bytes, qr_svg_bytes
 from app.core.sanitize import clean_text
@@ -12,21 +12,40 @@ from app.database import get_db
 from app.models import GalleryImage, LinkVisit, TrackedLink, User
 from app.schemas.link import LinkCreate, LinkOut, LinkUpdate, LinkWithUrls
 
-router = APIRouter(prefix="/api/links", tags=["links"])
+router = APIRouter(
+    prefix="/api/links", tags=["links"], dependencies=[Depends(require_links_area)]
+)
+
+
+def _allowed_kinds(user: User) -> list[str]:
+    kinds = []
+    if has_cap(user, "links"):
+        kinds.append("link")
+    if has_cap(user, "qr"):
+        kinds.append("qr")
+    return kinds
+
+
+def _check_kind(user: User, kind: str) -> None:
+    if kind == "qr" and not has_cap(user, "qr"):
+        raise HTTPException(status_code=403, detail="Nu ai permisiunea pentru QR coduri")
+    if kind == "link" and not has_cap(user, "links"):
+        raise HTTPException(status_code=403, detail="Nu ai permisiunea pentru linkuri")
 
 
 def _short_url(slug: str) -> str:
-    return f"{settings.BASE_URL}/l/{slug}"
+    return f"{settings.public_url}/l/{slug}"
 
 
 def _qr_target(slug: str) -> str:
-    return f"{settings.BASE_URL}/q/{slug}"
+    return f"{settings.public_url}/q/{slug}"
 
 
 def _to_with_urls(link: TrackedLink, total: int = 0) -> LinkWithUrls:
     return LinkWithUrls(
         **LinkOut.model_validate(link).model_dump(),
         short_url=_short_url(link.slug),
+        # qr_url rămâne pe API (imaginea e servită autentificat din dashboard)
         qr_url=f"{settings.BASE_URL}/api/links/{link.id}/qr.png",
         total_visits=total,
     )
@@ -35,6 +54,8 @@ def _to_with_urls(link: TrackedLink, total: int = 0) -> LinkWithUrls:
 async def _owned_link(link_id: int, user: User, db: AsyncSession) -> TrackedLink:
     link = await db.get(TrackedLink, link_id)
     if not link or link.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Link inexistent")
+    if link.kind not in _allowed_kinds(user):
         raise HTTPException(status_code=404, detail="Link inexistent")
     return link
 
@@ -63,7 +84,10 @@ async def list_links(
     result = await db.execute(
         select(TrackedLink, func.count(LinkVisit.id))
         .outerjoin(LinkVisit, LinkVisit.link_id == TrackedLink.id)
-        .where(TrackedLink.owner_id == user.id)
+        .where(
+            TrackedLink.owner_id == user.id,
+            TrackedLink.kind.in_(_allowed_kinds(user)),
+        )
         .group_by(TrackedLink.id)
         .order_by(TrackedLink.created_at.desc())
     )
@@ -81,6 +105,7 @@ async def create_link(
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Slug-ul este deja folosit")
+    _check_kind(user, payload.kind)
     logo_id = await _validate_logo(payload.logo_image_id, user, db)
     link = TrackedLink(
         slug=payload.slug,
@@ -106,10 +131,17 @@ async def links_overview(
 ):
     """Statistici agregate peste toate linkurile userului (pentru dashboard)."""
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    owned = select(TrackedLink.id).where(TrackedLink.owner_id == user.id).scalar_subquery()
+    kinds = _allowed_kinds(user)
+    owned = (
+        select(TrackedLink.id)
+        .where(TrackedLink.owner_id == user.id, TrackedLink.kind.in_(kinds))
+        .scalar_subquery()
+    )
 
     links_count = await db.scalar(
-        select(func.count()).where(TrackedLink.owner_id == user.id)
+        select(func.count()).where(
+            TrackedLink.owner_id == user.id, TrackedLink.kind.in_(kinds)
+        )
     )
     total = await db.scalar(select(func.count()).where(LinkVisit.link_id.in_(owned)))
     scans = await db.scalar(
@@ -134,7 +166,7 @@ async def links_overview(
             func.count(LinkVisit.id).label("visits"),
         )
         .outerjoin(LinkVisit, LinkVisit.link_id == TrackedLink.id)
-        .where(TrackedLink.owner_id == user.id)
+        .where(TrackedLink.owner_id == user.id, TrackedLink.kind.in_(kinds))
         .group_by(TrackedLink.id)
         .order_by(func.count(LinkVisit.id).desc())
         .limit(8)
@@ -155,7 +187,11 @@ async def links_overview(
     loc_rows = await db.execute(
         select(TrackedLink.location_label, func.count(LinkVisit.id).label("c"))
         .join(LinkVisit, LinkVisit.link_id == TrackedLink.id)
-        .where(TrackedLink.owner_id == user.id, LinkVisit.created_at >= since)
+        .where(
+            TrackedLink.owner_id == user.id,
+            TrackedLink.kind.in_(kinds),
+            LinkVisit.created_at >= since,
+        )
         .group_by(TrackedLink.location_label)
         .order_by(func.count(LinkVisit.id).desc())
         .limit(8)
@@ -215,6 +251,7 @@ async def update_link(
     if payload.location_label is not None:
         link.location_label = clean_text(payload.location_label)
     if payload.kind is not None:
+        _check_kind(user, payload.kind)
         link.kind = payload.kind
     if payload.clear_logo:
         link.logo_image_id = None

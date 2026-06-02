@@ -4,11 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_cap
 from app.database import get_db
 from app.models import Event, Site, User
 
-router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+router = APIRouter(
+    prefix="/api/analytics",
+    tags=["analytics"],
+    dependencies=[Depends(require_cap("sites"))],
+)
 
 
 async def _owned_site(site_id: int, user: User, db: AsyncSession) -> Site:

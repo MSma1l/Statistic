@@ -30,6 +30,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-statistic}:${POSTGRES_PASSWORD:-statistic}@db:5432/${POSTGRES_DB:-statistic}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       BASE_URL: ${BASE_URL:-http://localhost:8000}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
       FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL:-admin@statistic.app}
       FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD:-admin1234}

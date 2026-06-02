@@ -12,7 +12,7 @@ Aplicația trebuie să fie pornită (`docker compose up -d`). Apoi:
 bash examples/test_e2e.sh
 ```
 
-Scriptul verifică **37 de lucruri** și îți spune la final `TOTUL FUNCȚIONEAZĂ ✓` sau ce a eșuat. Ce testează:
+Scriptul verifică **51 de lucruri** și îți spune la final `TOTUL FUNCȚIONEAZĂ ✓` sau ce a eșuat. Ce testează:
 
 | Grup | Ce confirmă |
 |------|-------------|
@@ -22,7 +22,9 @@ Scriptul verifică **37 de lucruri** și îți spune la final `TOTUL FUNCȚIONEA
 | 4. Pixel | creare site, primire evenimente, statistici corecte, heatmap |
 | 5. Linkuri & QR | creare, slug duplicat/invalid, redirect-uri, scanări vs click-uri, imaginea QR |
 | 6. Izolare utilizatori | un user nu vede datele altuia; non-adminii n-au drepturi de admin |
-| 7. Curățenie | șterge datele de test la final |
+| 7. Galerie & QR cu logo | upload imagine, limita de 25 MB, tip link/QR, logo în QR (PNG+SVG), overview dashboard |
+| 8. Permisiuni | un user „doar QR" e blocat la site-uri și la tip link (403), dar poate crea QR |
+| 9. Curățenie | șterge datele de test la final |
 
 > Dacă rulezi pe alte porturi, setează-le: `BASE_URL=http://localhost:8000 bash examples/test_e2e.sh`
 
@@ -59,11 +61,23 @@ Scriptul verifică **37 de lucruri** și îți spune la final `TOTUL FUNCȚIONEA
    - ✅ „Total intrări" = 2, separate în **scanări QR** și **click-uri link**.
    - ✅ Poți descărca QR-ul ca PNG/SVG.
 
-### Pas 4 — Utilizatori (doar admin)
-1. Mergi la **Utilizatori** → **Utilizator nou** → creează unul.
-2. Deloghează-te și loghează-te cu noul cont.
-   - ✅ Nu vede site-urile/linkurile tale (datele sunt izolate).
-   - ✅ Dacă nu e admin, nu are meniul **Utilizatori**.
+### Pas 3.5 — Galerie + QR cu logo
+1. Mergi la **Galerie** → **Încarcă imagine** → alege un logo (PNG/JPG).
+   - ✅ Apare în grilă; bara de sus arată spațiul folosit din 25 MB.
+2. La **Linkuri & QR** → **Creează**, alege tipul **QR cod** → la „Logo" selectează imaginea.
+3. Deschide linkul → QR-ul are **logo-ul în centru**. Descarcă-l PNG/SVG.
+   - ✅ Scanează-l cu telefonul — tot funcționează (corecție de eroare ridicată).
+4. Editează linkul (nume, locație, destinație, logo) → **Salvează**.
+   - ✅ Modificările se aplică; QR-ul se actualizează.
+
+### Pas 4 — Utilizatori & permisiuni (doar admin)
+1. Mergi la **Utilizatori** → **Utilizator nou**.
+2. La **Permisiuni**, apasă o presetare (ex. **Doar QR**) sau bifează manual ce poate accesa → **Creează**.
+3. Deloghează-te și loghează-te cu noul cont.
+   - ✅ Vede **doar** secțiunile permise (ex. la „Doar QR" nu apar Site-uri; la creare poate alege doar tip QR).
+   - ✅ Nu vede datele tale (izolare). Dacă nu e admin, nu are meniul **Utilizatori**.
+4. Înapoi ca admin: la un user apasă **Permisiuni** → schimbă-le → **Salvează**.
+   - ✅ La următoarea logare, accesul lui s-a modificat.
 
 ### Pas 5 — Securitate (opțional, de curiozitate)
 - La login, încearcă parola `x' OR 1=1 --`.

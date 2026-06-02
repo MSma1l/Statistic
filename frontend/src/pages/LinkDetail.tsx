@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Check,
+  Copy,
   Download,
   LinkIcon,
   MousePointerClick,
@@ -103,6 +105,8 @@ export default function LinkDetail() {
     },
   });
 
+  const [copied, setCopied] = useState(false);
+
   async function downloadQr(fmt: "png" | "svg") {
     const res = await api.get(`/api/links/${linkId}/qr.${fmt}`, { responseType: "blob" });
     const url = URL.createObjectURL(res.data);
@@ -111,6 +115,19 @@ export default function LinkDetail() {
     a.download = `${link.data?.slug || "qr"}.${fmt}`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function copyQrImage() {
+    try {
+      const res = await api.get(`/api/links/${linkId}/qr.png`, { responseType: "blob" });
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": res.data }),
+      ]);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      alert("Browserul nu permite copierea imaginii. Folosește butonul Descarcă PNG.");
+    }
   }
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
@@ -150,18 +167,24 @@ export default function LinkDetail() {
           <img
             src={`${API_URL}/api/links/${linkId}/qr.png?v=${qrVersion}`}
             alt="QR"
-            className="h-44 w-44 rounded-xl border border-slate-200"
+            className="aspect-square w-full max-w-[280px] rounded-2xl border border-slate-200 bg-white p-2"
           />
           {link.data.location_label && (
             <p className="mt-2 text-sm text-slate-500">📍 {link.data.location_label}</p>
           )}
-          <div className="mt-3 flex gap-2">
-            <button className="btn-ghost" onClick={() => downloadQr("png")}>
-              <Download size={16} /> PNG
+          <div className="mt-4 flex w-full flex-col gap-2">
+            <button className="btn-primary w-full" onClick={copyQrImage}>
+              {copied ? <Check size={16} /> : <Copy size={16} />}
+              {copied ? "Copiat!" : "Copiază imaginea"}
             </button>
-            <button className="btn-ghost" onClick={() => downloadQr("svg")}>
-              <Download size={16} /> SVG
-            </button>
+            <div className="flex gap-2">
+              <button className="btn-ghost flex-1" onClick={() => downloadQr("png")}>
+                <Download size={16} /> PNG
+              </button>
+              <button className="btn-ghost flex-1" onClick={() => downloadQr("svg")}>
+                <Download size={16} /> SVG
+              </button>
+            </div>
           </div>
         </div>
 

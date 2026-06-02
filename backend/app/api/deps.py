@@ -36,3 +36,34 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
             status_code=status.HTTP_403_FORBIDDEN, detail="Necesită drepturi de admin"
         )
     return user
+
+
+def has_cap(user: User, cap: str) -> bool:
+    """admin are toate capabilitățile; altfel verifică flagul can_<cap>."""
+    if user.is_admin:
+        return True
+    return bool(getattr(user, f"can_{cap}", False))
+
+
+def require_cap(cap: str):
+    """Dependență care cere o capabilitate (sites / links / qr)."""
+
+    async def _dep(user: User = Depends(get_current_user)) -> User:
+        if not has_cap(user, cap):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Nu ai permisiunea pentru această secțiune",
+            )
+        return user
+
+    return _dep
+
+
+async def require_links_area(user: User = Depends(get_current_user)) -> User:
+    """Acces la zona Linkuri/QR/Galerie dacă are cel puțin una dintre capabilități."""
+    if not (has_cap(user, "links") or has_cap(user, "qr")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nu ai permisiunea pentru această secțiune",
+        )
+    return user
