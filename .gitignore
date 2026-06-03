@@ -1,5 +1,10 @@
-# Env
+# Env (secretele NU intră în git; .env.example / .env.prod.example rămân)
 .env
+.env.prod
+.env.*.local
+
+# Backup-uri DB
+*.sql
 
 # Python
 __pycache__/

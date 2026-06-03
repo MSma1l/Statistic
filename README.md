@@ -62,4 +62,20 @@ Slug-ul nu se schimbă niciodată (QR valabil pe viață), dar destinația e edi
 
 ## Producție
 
-Setează în `.env`: `JWT_SECRET` random, `COOKIE_SECURE=true` (pe HTTPS), `BASE_URL` și `FRONTEND_ORIGIN` cu domeniul real.
+Deployment pe server cu **un singur domeniu** și **nginx dispecer** pe host
+(rutează `/api`, `/auth`, `/px`, `/l`, `/q` spre backend, restul spre dashboard) —
+ghid complet pas cu pas în [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+Pe scurt:
+
+```bash
+cp .env.prod.example .env.prod          # completează domeniul, JWT_SECRET, parole
+docker compose --env-file .env.prod up -d --build
+sudo cp deploy/nginx/statistic.conf /etc/nginx/sites-available/statistic
+sudo ln -s /etc/nginx/sites-available/statistic /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Esențial în `.env.prod`: `JWT_SECRET` random, `BASE_URL`/`FRONTEND_ORIGIN` = domeniul
+real, `VITE_API_URL` **gol** (same-origin), `BIND_HOST=127.0.0.1:`, iar după HTTPS
+(certbot) `COOKIE_SECURE=true`.

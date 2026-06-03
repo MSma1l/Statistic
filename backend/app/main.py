@@ -27,6 +27,15 @@ _MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_sites BOOLEAN NOT NULL DEFAULT true",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_links BOOLEAN NOT NULL DEFAULT true",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_qr BOOLEAN NOT NULL DEFAULT true",
+    # Analytics avansat: timp pe pagină + atribuire campanie (UTM).
+    "ALTER TABLE events ADD COLUMN IF NOT EXISTS duration_ms INTEGER",
+    "ALTER TABLE events ADD COLUMN IF NOT EXISTS utm_source VARCHAR(128)",
+    "ALTER TABLE events ADD COLUMN IF NOT EXISTS utm_medium VARCHAR(128)",
+    "ALTER TABLE events ADD COLUMN IF NOT EXISTS utm_campaign VARCHAR(128)",
+    "CREATE INDEX IF NOT EXISTS ix_events_site_visitor_created ON events (site_id, visitor_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS ix_events_site_session ON events (site_id, session_id)",
+    # Prag configurabil de timp activ minim per site.
+    "ALTER TABLE sites ADD COLUMN IF NOT EXISTS min_engagement_seconds INTEGER NOT NULL DEFAULT 5",
 ]
 
 

@@ -18,5 +18,9 @@ COPY . .
 
 EXPOSE 8000
 
-# Tabelele sunt create automat la pornire (vezi app/main.py lifespan)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Tabelele sunt create automat la pornire (vezi app/main.py lifespan).
+# --proxy-headers + --forwarded-allow-ips=*: în spatele nginx-ului dispecer,
+# uvicorn citește IP-ul real din X-Forwarded-For (rate-limiting corect per
+# vizitator). Fără proxy (local direct) headerul lipsește, deci nu schimbă nimic.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--proxy-headers", "--forwarded-allow-ips=*"]

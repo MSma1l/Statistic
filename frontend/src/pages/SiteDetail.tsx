@@ -1,5 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, MousePointerClick, Pencil, Trash2, Users, Eye, Activity } from "lucide-react";
+import {
+  ArrowLeft,
+  MousePointerClick,
+  Pencil,
+  Trash2,
+  Users,
+  Eye,
+  Activity,
+  Clock,
+  TrendingDown,
+  Megaphone,
+  Smartphone,
+  Monitor,
+  Tablet,
+} from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -14,8 +28,9 @@ import {
   YAxis,
 } from "recharts";
 import HeatmapCanvas from "../components/HeatmapCanvas";
+import JourneyModal from "../components/JourneyModal";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
-import { api, type Site } from "../lib/api";
+import { api, formatDuration, type Site } from "../lib/api";
 
 const RANGES = [
   { label: "7 zile", value: 7 },
@@ -30,8 +45,10 @@ export default function SiteDetail() {
   const qc = useQueryClient();
   const [days, setDays] = useState(30);
   const [heatPath, setHeatPath] = useState<string>("");
+  const [scrollPath, setScrollPath] = useState<string>("");
+  const [openSession, setOpenSession] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [edit, setEdit] = useState({ name: "", domain: "" });
+  const [edit, setEdit] = useState({ name: "", domain: "", min_engagement_seconds: 5 });
 
   const site = useQuery({
     queryKey: ["site", siteId],
@@ -76,6 +93,33 @@ export default function SiteDetail() {
         await api.get(
           `/api/analytics/${siteId}/heatmap?days=${days}&path=${encodeURIComponent(
             heatPath
+          )}`
+        )
+      ).data,
+  });
+  const sessionsQ = useQuery({
+    queryKey: ["sessions", siteId, days],
+    queryFn: async () =>
+      (await api.get(`/api/analytics/${siteId}/sessions?days=${days}`)).data,
+  });
+  const engagementQ = useQuery({
+    queryKey: ["engagement", siteId, days],
+    queryFn: async () =>
+      (await api.get(`/api/analytics/${siteId}/engagement?days=${days}`)).data,
+  });
+  const campaignsQ = useQuery({
+    queryKey: ["campaigns", siteId, days],
+    queryFn: async () =>
+      (await api.get(`/api/analytics/${siteId}/campaigns?days=${days}`)).data,
+  });
+  const scrollmap = useQuery({
+    queryKey: ["scrollmap", siteId, scrollPath, days],
+    enabled: !!scrollPath,
+    queryFn: async () =>
+      (
+        await api.get(
+          `/api/analytics/${siteId}/scrollmap?days=${days}&path=${encodeURIComponent(
+            scrollPath
           )}`
         )
       ).data,
@@ -130,6 +174,24 @@ export default function SiteDetail() {
                   onChange={(e) => setEdit({ ...edit, domain: e.target.value })}
                 />
               </div>
+              <div>
+                <label className="label" title="Vizitele cu timp activ sub această valoare nu se numără la timpul mediu / engagement">
+                  Prag atenție (sec)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={600}
+                  className="input w-28"
+                  value={edit.min_engagement_seconds}
+                  onChange={(e) =>
+                    setEdit({
+                      ...edit,
+                      min_engagement_seconds: Math.max(0, Number(e.target.value) || 0),
+                    })
+                  }
+                />
+              </div>
               <button className="btn-primary" onClick={() => updateMut.mutate()}>
                 Salvează
               </button>
@@ -145,14 +207,23 @@ export default function SiteDetail() {
                   className="text-slate-300 hover:text-brand-600"
                   title="Editează"
                   onClick={() => {
-                    setEdit({ name: site.data!.name, domain: site.data!.domain });
+                    setEdit({
+                      name: site.data!.name,
+                      domain: site.data!.domain,
+                      min_engagement_seconds: site.data!.min_engagement_seconds,
+                    });
                     setEditing(true);
                   }}
                 >
                   <Pencil size={16} />
                 </button>
               </h1>
-              <p className="text-sm text-slate-500">{site.data.domain || "—"}</p>
+              <p className="text-sm text-slate-500">
+                {site.data.domain || "—"}
+                <span className="ml-2 text-slate-400">
+                  · prag atenție: {site.data.min_engagement_seconds}s
+                </span>
+              </p>
             </>
           )}
         </div>
@@ -197,11 +268,21 @@ export default function SiteDetail() {
       </div>
 
       {/* KPI */}
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
         <StatCard label="Vizualizări" value={summary.data?.pageviews ?? "—"} icon={<Eye size={18} />} />
         <StatCard label="Vizitatori unici" value={summary.data?.visitors ?? "—"} icon={<Users size={18} />} />
         <StatCard label="Sesiuni" value={summary.data?.sessions ?? "—"} icon={<Activity size={18} />} />
         <StatCard label="Click-uri" value={summary.data?.clicks ?? "—"} icon={<MousePointerClick size={18} />} />
+        <StatCard
+          label="Timp mediu / pagină"
+          value={summary.data ? formatDuration(summary.data.avg_seconds ?? 0) : "—"}
+          icon={<Clock size={18} />}
+        />
+        <StatCard
+          label="Bounce rate"
+          value={summary.data ? `${summary.data.bounce_rate ?? 0}%` : "—"}
+          icon={<TrendingDown size={18} />}
+        />
       </div>
 
       {/* Evoluție în timp */}
@@ -266,6 +347,165 @@ export default function SiteDetail() {
         </div>
       </div>
 
+      {/* Sesiuni & vizitatori — povestea fiecărui om */}
+      <div className="card mb-6">
+        <div className="mb-1 flex items-center gap-2">
+          <Users size={18} className="text-brand-600" />
+          <h2 className="font-semibold text-slate-800">Sesiuni & vizitatori</h2>
+        </div>
+        <p className="mb-4 text-sm text-slate-500">
+          Click pe o sesiune ca să vezi traseul detaliat: ce pagini a parcurs, unde a
+          dat click, cât a stat și ce l-a interesat.
+        </p>
+        {sessionsQ.isLoading ? (
+          <Spinner />
+        ) : !sessionsQ.data?.length ? (
+          <p className="py-6 text-center text-sm text-slate-400">Nicio sesiune încă.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-xs uppercase text-slate-400">
+                  <th className="py-2 pr-3">Când</th>
+                  <th className="py-2 pr-3">Landing</th>
+                  <th className="py-2 pr-3">Sursă</th>
+                  <th className="py-2 pr-3">Device</th>
+                  <th className="py-2 pr-3 text-right">Pagini</th>
+                  <th className="py-2 pr-3 text-right">Click-uri</th>
+                  <th className="py-2 pr-3 text-right">Timp activ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(sessionsQ.data ?? []).map((s: any) => (
+                  <tr
+                    key={s.session_id}
+                    onClick={() => setOpenSession(s.session_id)}
+                    className="cursor-pointer border-b border-slate-50 hover:bg-slate-50"
+                  >
+                    <td className="py-2 pr-3 text-slate-500">
+                      {new Date(s.last_seen).toLocaleString("ro-RO", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="max-w-[180px] truncate py-2 pr-3 text-slate-700">
+                      <code className="text-xs">{s.landing}</code>
+                    </td>
+                    <td className="max-w-[160px] truncate py-2 pr-3 text-slate-500">
+                      {s.utm_campaign
+                        ? `${s.utm_source} · ${s.utm_campaign}`
+                        : s.referrer}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <DeviceBadge device={s.device} />
+                    </td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{s.pageviews}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{s.clicks}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums text-slate-700">
+                      {formatDuration(s.active_s)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Timp pe pagină (engagement) */}
+        <div className="card">
+          <div className="mb-1 flex items-center gap-2">
+            <Clock size={18} className="text-amber-500" />
+            <h2 className="font-semibold text-slate-800">Timp mediu pe pagină</h2>
+          </div>
+          <p className="mb-4 text-xs text-slate-400">
+            Vizitele sub {site.data.min_engagement_seconds}s de atenție nu se numără
+            (modifici pragul din ✏️ de lângă numele site-ului).
+          </p>
+          {!engagementQ.data?.length ? (
+            <p className="py-6 text-center text-sm text-slate-400">
+              Încă nu s-a strâns timp de engagement.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {(engagementQ.data ?? []).map((e: any, i: number) => (
+                <div key={i} className="flex items-center justify-between text-sm">
+                  <code className="truncate pr-2 text-slate-700">{e.path}</code>
+                  <span className="shrink-0 font-medium text-slate-900">
+                    {formatDuration(e.avg_seconds)}{" "}
+                    <span className="text-xs font-normal text-slate-400">
+                      · {e.views} vizite
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Campanii (UTM) */}
+        <div className="card">
+          <div className="mb-4 flex items-center gap-2">
+            <Megaphone size={18} className="text-fuchsia-500" />
+            <h2 className="font-semibold text-slate-800">Campanii (UTM)</h2>
+          </div>
+          {!campaignsQ.data?.length ? (
+            <p className="py-6 text-center text-sm text-slate-400">
+              Nicio campanie încă. Adaugă <code>?utm_source=…&utm_campaign=…</code> în
+              linkurile tale.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {(campaignsQ.data ?? []).map((c: any, i: number) => (
+                <div key={i} className="flex items-center justify-between text-sm">
+                  <span className="truncate pr-2 text-slate-700">
+                    {c.source}
+                    <span className="text-slate-400">
+                      {" "}
+                      · {c.medium} · {c.campaign}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-medium text-slate-900">
+                    {c.sessions} ses.
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Harta de atenție pe scroll */}
+      <div className="card mb-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-semibold text-slate-800">Atenție pe pagină (scroll)</h2>
+          <select
+            className="input max-w-xs"
+            value={scrollPath}
+            onChange={(e) => setScrollPath(e.target.value)}
+          >
+            <option value="">Alege o pagină…</option>
+            {(pages.data ?? []).map((p: any) => (
+              <option key={p.path} value={p.path}>
+                {p.path}
+              </option>
+            ))}
+          </select>
+        </div>
+        {!scrollPath ? (
+          <p className="py-8 text-center text-sm text-slate-400">
+            Selectează o pagină ca să vezi până unde derulează vizitatorii.
+          </p>
+        ) : scrollmap.isLoading ? (
+          <Spinner />
+        ) : (
+          <ScrollCurve data={scrollmap.data} />
+        )}
+      </div>
+
       {/* Heatmap */}
       <div className="card">
         <div className="mb-4 flex items-center justify-between">
@@ -298,6 +538,65 @@ export default function SiteDetail() {
             <HeatmapCanvas points={heatmap.data?.points ?? []} />
           </div>
         )}
+      </div>
+
+      {openSession && (
+        <JourneyModal
+          siteId={siteId}
+          sessionId={openSession}
+          onClose={() => setOpenSession(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DeviceBadge({ device }: { device: string }) {
+  const icon =
+    device === "mobile" ? (
+      <Smartphone size={14} />
+    ) : device === "tablet" ? (
+      <Tablet size={14} />
+    ) : device === "desktop" ? (
+      <Monitor size={14} />
+    ) : (
+      <Activity size={14} />
+    );
+  return (
+    <span className="inline-flex items-center gap-1 text-slate-500">
+      {icon}
+      <span className="text-xs capitalize">{device}</span>
+    </span>
+  );
+}
+
+function ScrollCurve({ data }: { data: any }) {
+  const curve: { depth: number; pct: number; sessions: number }[] = data?.curve ?? [];
+  return (
+    <div>
+      <p className="mb-4 text-sm text-slate-500">
+        Din {data?.base_sessions ?? 0} sesiuni care au deschis pagina, câte ajung la
+        fiecare adâncime. Acolo unde procentul scade brusc, vizitatorii „abandonează".
+      </p>
+      <div className="space-y-3">
+        {curve.map((c) => (
+          <div key={c.depth} className="flex items-center gap-3">
+            <span className="w-12 shrink-0 text-right text-sm font-medium text-slate-600">
+              {c.depth}%
+            </span>
+            <div className="h-6 flex-1 overflow-hidden rounded-lg bg-slate-100">
+              <div
+                className="flex h-full items-center justify-end rounded-lg bg-gradient-to-r from-brand-400 to-brand-600 px-2 text-xs font-medium text-white transition-all"
+                style={{ width: `${Math.max(c.pct, 3)}%` }}
+              >
+                {c.pct}%
+              </div>
+            </div>
+            <span className="w-16 shrink-0 text-xs text-slate-400">
+              {c.sessions} ses.
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );

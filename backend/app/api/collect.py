@@ -15,7 +15,7 @@ from app.schemas.event import CollectPayload
 
 router = APIRouter(prefix="/px", tags=["pixel"])
 
-_ALLOWED_TYPES = {"pageview", "click", "scroll", "custom"}
+_ALLOWED_TYPES = {"pageview", "click", "scroll", "custom", "engagement"}
 _TRACKER_PATH = Path(__file__).resolve().parent.parent / "static" / "t.js"
 
 
@@ -27,6 +27,13 @@ async def tracker_script():
         media_type="application/javascript",
         headers={"Cache-Control": "public, max-age=3600"},
     )
+
+
+def _clean_utm(value: str | None) -> str | None:
+    """Sanitizează un parametru UTM (vine din URL, deci e input neîncrezut)."""
+    if not value:
+        return None
+    return clean_text(value)[:128] or None
 
 
 def _device_type(ua_string: str) -> str:
@@ -82,6 +89,10 @@ async def collect(
                 viewport_w=ev.viewport_w,
                 viewport_h=ev.viewport_h,
                 scroll_depth=ev.scroll_depth,
+                duration_ms=ev.duration_ms,
+                utm_source=_clean_utm(ev.utm_source),
+                utm_medium=_clean_utm(ev.utm_medium),
+                utm_campaign=_clean_utm(ev.utm_campaign),
                 visitor_id=payload.visitor_id[:64],
                 session_id=ev.session_id[:64],
                 user_agent=ua_string,

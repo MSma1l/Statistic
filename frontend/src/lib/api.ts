@@ -1,7 +1,10 @@
 import axios from "axios";
 
+// `??` (nu `||`): un string GOL e valid și înseamnă „same-origin" (cereri
+// relative `/api/...`, rezolvate de nginx-ul dispecer din producție). Doar
+// `undefined` (variabila nesetată la build) cade pe fallback-ul local.
 export const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) || "http://localhost:8000";
+  (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -37,6 +40,7 @@ export interface Site {
   site_key: string;
   name: string;
   domain: string;
+  min_engagement_seconds: number;
   created_at: string;
   snippet?: string;
 }
@@ -75,6 +79,17 @@ export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+/** Secunde -> „1m 23s" / „45s" / „2h 5m". */
+export function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  if (m < 60) return rem ? `${m}m ${rem}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
 }
 
 export function extractError(err: unknown, fallback = "A apărut o eroare"): string {

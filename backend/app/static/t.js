@@ -22,9 +22,7 @@
 
   // --- Identitate anonimă (vizitator + sesiune) ---
   function uid() {
-    return (
-      Date.now().toString(36) + Math.random().toString(36).slice(2, 10)
-    );
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   }
   function getVisitor() {
     try {
@@ -53,6 +51,22 @@
 
   var visitorId = getVisitor();
   var sessionId = getSession();
+
+  // --- Atribuire campanie: capturăm UTM-urile din URL-ul de intrare (o dată
+  //     pe încărcare = nivel sesiune, ca în Meta Pixel / Yandex Metrica). ---
+  function getUTM() {
+    try {
+      var p = new URLSearchParams(location.search);
+      return {
+        utm_source: p.get("utm_source") || null,
+        utm_medium: p.get("utm_medium") || null,
+        utm_campaign: p.get("utm_campaign") || null,
+      };
+    } catch (e) {
+      return {};
+    }
+  }
+  var utm = getUTM();
 
   // --- Coadă de evenimente + trimitere în batch ---
   var queue = [];
@@ -130,20 +144,69 @@
     return parts.join(" > ");
   }
 
-  // --- Pageview ---
-  track("pageview");
+  // ===========================================================================
+  //  ENGAGEMENT (timp ACTIV pe pagină) + scroll MAXIM atins
+  //  Cronometrăm doar cât pagina e vizibilă (tab activ). La plecare/navigare
+  //  trimitem un eveniment `engagement` cu durata și scroll-ul maxim.
+  // ===========================================================================
+  var currentPath = location.pathname + location.search;
+  var activeMs = 0; // ms acumulați cât pagina a fost vizibilă
+  var lastResume = Date.now(); // momentul ultimei „reactivări"
+  var isVisible = document.visibilityState !== "hidden";
+  var maxScroll = 0; // % maxim de scroll atins pe pagina curentă
 
-  // SPA: re-track la schimbarea de istoric
+  function accumulate() {
+    // Adaugă timpul scurs de la ultima reactivare, dacă pagina e vizibilă.
+    if (isVisible) {
+      activeMs += Date.now() - lastResume;
+      lastResume = Date.now();
+    }
+  }
+
+  function sendEngagement() {
+    accumulate();
+    if (activeMs < 300) return; // ignoră vizitele „fantomă" (<0.3s)
+    track("engagement", {
+      path: currentPath,
+      duration_ms: Math.min(activeMs, 86400000),
+      scroll_depth: maxScroll,
+    });
+  }
+
+  function resetPage() {
+    // La trecerea pe o pagină nouă (SPA): zero contoarele.
+    activeMs = 0;
+    lastResume = Date.now();
+    maxScroll = 0;
+    scrollHits = { 25: false, 50: false, 75: false, 100: false };
+    currentPath = location.pathname + location.search;
+  }
+
+  // --- Pageview ---
+  function pageview() {
+    track("pageview", {
+      utm_source: utm.utm_source,
+      utm_medium: utm.utm_medium,
+      utm_campaign: utm.utm_campaign,
+    });
+  }
+  pageview();
+
+  // SPA: la schimbarea de istoric închidem engagement-ul paginii vechi, apoi
+  // resetăm și înregistrăm noul pageview.
+  function onSpaNavigate() {
+    sendEngagement();
+    resetPage();
+    pageview();
+  }
   var _push = history.pushState;
   history.pushState = function () {
     _push.apply(this, arguments);
-    track("pageview");
+    onSpaNavigate();
   };
-  window.addEventListener("popstate", function () {
-    track("pageview");
-  });
+  window.addEventListener("popstate", onSpaNavigate);
 
-  // --- Click + coordonate pentru heatmap ---
+  // --- Click + coordonate pentru heatmap + context (link/buton) ---
   document.addEventListener(
     "click",
     function (e) {
@@ -159,29 +222,37 @@
       var x = (e.pageX / docW) * 100;
       var y = (e.pageY / docH) * 100;
       var text = (el.innerText || el.textContent || el.value || "").trim();
+      // Linkul cel mai apropiat (dacă s-a apăsat în interiorul unui <a>).
+      var anchor = el.closest ? el.closest("a") : null;
+      var href = anchor
+        ? anchor.getAttribute("href")
+        : el.tagName === "A"
+        ? el.getAttribute("href")
+        : "";
       track("click", {
         element_selector: selectorFor(el),
         element_text: text.slice(0, 120),
         x_pct: Math.round(x * 100) / 100,
         y_pct: Math.round(y * 100) / 100,
+        props: { href: (href || "").slice(0, 512), tag: (el.tagName || "").toLowerCase() },
       });
     },
     true
   );
 
-  // --- Scroll depth ---
-  var depths = { 25: false, 50: false, 75: false, 100: false };
+  // --- Scroll depth (milestone) + scroll maxim (pentru engagement) ---
+  var scrollHits = { 25: false, 50: false, 75: false, 100: false };
   window.addEventListener(
     "scroll",
     function () {
       var st = window.scrollY || document.documentElement.scrollTop;
-      var h =
-        document.documentElement.scrollHeight - window.innerHeight;
+      var h = document.documentElement.scrollHeight - window.innerHeight;
       if (h <= 0) return;
       var pct = (st / h) * 100;
+      if (pct > maxScroll) maxScroll = Math.min(100, Math.round(pct));
       [25, 50, 75, 100].forEach(function (d) {
-        if (!depths[d] && pct >= d) {
-          depths[d] = true;
+        if (!scrollHits[d] && pct >= d) {
+          scrollHits[d] = true;
           track("scroll", { scroll_depth: d });
         }
       });
@@ -189,14 +260,30 @@
     { passive: true }
   );
 
-  // Flush la ieșire
-  window.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") flush();
+  // --- Vizibilitate: pauză/reluare cronometru + flush la ascundere ---
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") {
+      accumulate();
+      isVisible = false;
+      sendEngagement();
+      flush();
+    } else {
+      isVisible = true;
+      lastResume = Date.now();
+    }
   });
-  window.addEventListener("pagehide", flush);
+
+  // La închiderea/părăsirea paginii: engagement final + trimitere.
+  window.addEventListener("pagehide", function () {
+    sendEngagement();
+    flush();
+  });
 
   // API public: window.statistic('custom_event', {props})
   window.statistic = function (name, props) {
-    track("custom", { element_text: String(name).slice(0, 120), props: props || null });
+    track("custom", {
+      element_text: String(name).slice(0, 120),
+      props: props || null,
+    });
   };
 })();

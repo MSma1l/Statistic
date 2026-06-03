@@ -36,7 +36,18 @@ class Event(Base):
     y_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     viewport_w: Mapped[int | None] = mapped_column(Integer, nullable=True)
     viewport_h: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Pentru scroll: adâncimea atinsă (25/50/75/100). Pentru engagement: scroll-ul
+    # MAXIM atins pe pagina respectivă.
     scroll_depth: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Timp ACTIV petrecut pe pagină (ms), trimis de evenimentul `engagement` la
+    # plecare/navigare. Semnalul principal de „cât a ținut atenția".
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Atribuire campanie (din parametrii UTM ai linkului de intrare).
+    utm_source: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    utm_medium: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    utm_campaign: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # Identificare anonimă
     visitor_id: Mapped[str] = mapped_column(String(64), nullable=False, default="", index=True)
@@ -57,4 +68,7 @@ class Event(Base):
         Index("ix_events_site_created", "site_id", "created_at"),
         Index("ix_events_site_path", "site_id", "path"),
         Index("ix_events_site_type", "site_id", "type"),
+        # Reconstrucția traseului unui vizitator (jurnal) și a sesiunilor.
+        Index("ix_events_site_visitor_created", "site_id", "visitor_id", "created_at"),
+        Index("ix_events_site_session", "site_id", "session_id"),
     )

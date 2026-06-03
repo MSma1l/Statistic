@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -21,6 +21,12 @@ class Site(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     domain: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    # Prag de „atenție reală": vizitele cu timp activ sub atâtea secunde nu se
+    # numără la timpul mediu / engagement (filtrează atingerile accidentale).
+    # Configurabil din interfață. Aplicat la interogare => retroactiv.
+    min_engagement_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=5, server_default="5"
+    )
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )

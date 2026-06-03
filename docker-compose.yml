@@ -10,7 +10,9 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # BIND_HOST gol (local) => expune pe toate interfețele. În producție
+      # pune BIND_HOST=127.0.0.1: ca să fie accesibil DOAR de pe server.
+      - "${BIND_HOST:-}${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-statistic} -d ${POSTGRES_DB:-statistic}"]
       interval: 5s
@@ -36,20 +38,24 @@ services:
       FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD:-admin1234}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BIND_HOST:-}${BACKEND_PORT:-8000}:8000"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${BASE_URL:-http://localhost:8000}
+        # Local: URL-ul absolut al backend-ului (cross-origin, cu CORS).
+        # Producție (un singur domeniu + nginx dispecer): lasă VITE_API_URL GOL
+        # în .env => cereri relative `/api/...`, same-origin, fără CORS.
+        # `-` (nu `:-`): un VITE_API_URL setat GOL e respectat, nu înlocuit.
+        VITE_API_URL: ${VITE_API_URL-http://localhost:8000}
     container_name: statistic_frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "${FRONTEND_PORT:-5173}:80"
+      - "${BIND_HOST:-}${FRONTEND_PORT:-5173}:80"
 
 volumes:
   db_data:

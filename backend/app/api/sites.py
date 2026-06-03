@@ -83,6 +83,8 @@ async def update_site(
         site.name = clean_text(payload.name)
     if payload.domain is not None:
         site.domain = clean_text(payload.domain)
+    if payload.min_engagement_seconds is not None:
+        site.min_engagement_seconds = payload.min_engagement_seconds
     await db.flush()
     await db.refresh(site)
     return site

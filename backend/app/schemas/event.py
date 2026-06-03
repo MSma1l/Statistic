@@ -14,6 +14,12 @@ class EventIn(BaseModel):
     viewport_w: int | None = None
     viewport_h: int | None = None
     scroll_depth: int | None = None
+    # Timp activ pe pagină (ms), trimis cu evenimentul `engagement`.
+    duration_ms: int | None = Field(default=None, ge=0, le=86_400_000)
+    # Atribuire campanie, capturată din UTM-urile linkului de intrare.
+    utm_source: str | None = Field(default=None, max_length=128)
+    utm_medium: str | None = Field(default=None, max_length=128)
+    utm_campaign: str | None = Field(default=None, max_length=128)
     session_id: str = Field(default="", max_length=64)
     props: dict | None = None
 
