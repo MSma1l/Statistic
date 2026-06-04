@@ -1,7 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
 import { ShieldAlert, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { api } from "../../lib/api";
+import {
+  api,
+  type AiAnalyzeResult,
+  type AiRecommendation,
+} from "../../lib/api";
 import { Spinner } from "../ui";
 
 const SEV: Record<string, string> = {
@@ -11,7 +15,7 @@ const SEV: Record<string, string> = {
 };
 
 /** Un card de recomandare; cele blocate de gardian sunt marcate vizibil (roșu). */
-function RecommendationCard({ r }: { r: any }) {
+function RecommendationCard({ r }: { r: AiRecommendation }) {
   return (
     <div
       className={`rounded-xl border p-4 ${
@@ -44,7 +48,7 @@ function RecommendationCard({ r }: { r: any }) {
 }
 
 /** Rezultatul analizei: tratează stările „indisponibil", „eroare", „gol" și lista de carduri. */
-function Result({ data }: { data: any }) {
+function Result({ data }: { data: AiAnalyzeResult }) {
   if (!data.available || data.error)
     return (
       <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -52,7 +56,7 @@ function Result({ data }: { data: any }) {
       </div>
     );
 
-  const recs: any[] = data.recommendations ?? [];
+  const recs = data.recommendations ?? [];
   if (!recs.length)
     return (
       <p className="mt-4 text-sm text-slate-400">
@@ -62,7 +66,7 @@ function Result({ data }: { data: any }) {
 
   return (
     <div className="mt-4 space-y-3">
-      {data.blocked_count > 0 && (
+      {(data.blocked_count ?? 0) > 0 && (
         <p className="text-xs text-slate-500">
           {data.blocked_count} recomandare(i) blocate de gardianul GDPR (marcate mai jos).
         </p>
@@ -91,7 +95,12 @@ export default function AiRecommendations({
   const [path, setPath] = useState("");
   const analyze = useMutation({
     mutationFn: async () =>
-      (await api.post(`/api/analytics/${siteId}/ai-analyze`, { path, days })).data,
+      (
+        await api.post<AiAnalyzeResult>(`/api/analytics/${siteId}/ai-analyze`, {
+          path,
+          days,
+        })
+      ).data,
   });
 
   return (

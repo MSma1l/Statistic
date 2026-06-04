@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { api } from "../../lib/api";
+import { api, type AppSettingItem } from "../../lib/api";
 
 /** O regulă deterministă a gardianului: cuvinte-cheie + motivul blocării. */
 interface Rule {
@@ -18,7 +18,7 @@ export default function GdprRulesEditor({
   setting,
   onSaved,
 }: {
-  setting: any;
+  setting: AppSettingItem;
   onSaved: () => void;
 }) {
   const [rules, setRules] = useState<Rule[]>(setting.value ?? []);

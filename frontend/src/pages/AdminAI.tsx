@@ -3,7 +3,7 @@ import { Bot, CheckCircle2, XCircle } from "lucide-react";
 import GdprRulesEditor from "../components/admin/GdprRulesEditor";
 import SettingField from "../components/admin/SettingField";
 import { PageHeader, Spinner } from "../components/ui";
-import { api } from "../lib/api";
+import { api, type AdminSettings, type AppSettingItem } from "../lib/api";
 
 /**
  * Pagina admin „AI & GDPR" — frame-urile editabile cerute:
@@ -16,14 +16,14 @@ export default function AdminAI() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-settings"],
-    queryFn: async () => (await api.get("/api/admin/settings")).data,
+    queryFn: async () => (await api.get<AdminSettings>("/api/admin/settings")).data,
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["admin-settings"] });
 
   if (isLoading) return <Spinner />;
 
-  const settings: any[] = data?.settings ?? [];
+  const settings: AppSettingItem[] = data?.settings ?? [];
   const ai = data?.ai ?? { enabled: false, model: "" };
 
   return (

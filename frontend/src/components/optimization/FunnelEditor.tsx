@@ -1,16 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Save, Target, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { api } from "../../lib/api";
+import { api, type FunnelStep } from "../../lib/api";
 import { Spinner } from "../ui";
 
-/** O treaptă din pâlnie, așa cum o editează UI-ul (forma de la GET/PUT /funnel). */
-export interface Step {
-  kind: "page" | "custom_event";
-  value: string;
-  label: string;
-  is_conversion: boolean;
-}
+// Folosim tipul partajat `FunnelStep` din lib/api (alias local `Step` pentru concizie).
+type Step = FunnelStep;
 
 /**
  * Editorul de pâlnie: definește treptele + ce înseamnă „conversie" pentru site.

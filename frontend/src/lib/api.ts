@@ -75,6 +75,89 @@ export interface GalleryList {
   limit_bytes: number;
 }
 
+// ============================================================================
+//  A/B Marketing + AI — tipuri partajate (răspunsurile router-ului /optimization)
+// ============================================================================
+
+/** O treaptă din pâlnie, forma editabilă (GET/PUT /funnel întoarce și id/position). */
+export interface FunnelStep {
+  kind: "page" | "custom_event";
+  value: string;
+  label: string;
+  is_conversion: boolean;
+}
+
+/** O treaptă în rezultatul comparației: câți au atins-o + procentele de trecere. */
+export interface FunnelStepResult extends FunnelStep {
+  reached: number;
+  pct_of_entries: number;
+  pct_of_prev: number;
+}
+
+/** Un grup (landing sau campanie) în tabelul comparativ. */
+export interface FunnelGroup {
+  group: string;
+  entries: number;
+  engaged: number;
+  engaged_pct: number;
+  steps: FunnelStepResult[];
+  conversions: number;
+  conversion_rate: number;
+  bounce_rate: number;
+  avg_active_seconds: number;
+  avg_scroll: number;
+  enough_data: boolean;
+  confidence: "ok" | "low";
+}
+
+/** Răspunsul complet de la GET /funnel-compare. */
+export interface FunnelCompare {
+  group_by: "landing" | "campaign";
+  days: number;
+  has_conversion_step: boolean;
+  funnel_steps: FunnelStep[];
+  groups: FunnelGroup[];
+  winner: string | null;
+}
+
+/** O recomandare AI; câmpurile `blocked_*` apar doar dacă gardianul a respins-o. */
+export interface AiRecommendation {
+  element: string;
+  problem: string;
+  recommendation: string;
+  severity: "low" | "medium" | "high";
+  evidence?: string;
+  blocked?: boolean;
+  blocked_by?: string;
+  blocked_reason?: string;
+}
+
+/** Răspunsul de la POST /ai-analyze (mereu are `available`). */
+export interface AiAnalyzeResult {
+  available: boolean;
+  error?: boolean;
+  message?: string;
+  model?: string;
+  recommendations: AiRecommendation[];
+  blocked_count?: number;
+}
+
+/** O setare editabilă din admin (GET /api/admin/settings → câmpul `settings`). */
+export interface AppSettingItem {
+  key: string;
+  value: any;
+  kind: "text" | "number" | "json";
+  description: string;
+  is_default: boolean;
+  updated_at: string | null;
+}
+
+/** Răspunsul de la GET /api/admin/settings. */
+export interface AdminSettings {
+  ai: { enabled: boolean; model: string };
+  settings: AppSettingItem[];
+}
+
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;

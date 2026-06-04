@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { RotateCcw, Save } from "lucide-react";
 import { useState } from "react";
-import { api } from "../../lib/api";
+import { api, type AppSettingItem } from "../../lib/api";
 
 /**
  * Câmp generic pentru o setare de tip TEXT sau NUMĂR (prompturi, praguri).
@@ -12,7 +12,7 @@ export default function SettingField({
   setting,
   onSaved,
 }: {
-  setting: any;
+  setting: AppSettingItem;
   onSaved: () => void;
 }) {
   const [value, setValue] = useState(setting.value);

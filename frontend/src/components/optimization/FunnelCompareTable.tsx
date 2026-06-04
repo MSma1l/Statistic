@@ -1,7 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
-import { api } from "../../lib/api";
+import {
+  api,
+  type FunnelCompare,
+  type FunnelGroup,
+  type FunnelStepResult,
+} from "../../lib/api";
 import { Spinner } from "../ui";
 
 /** Badge de încredere: verde = destule date, ambar = prea puține (nu declarăm câștigător). */
@@ -20,8 +25,8 @@ function ConfidenceBadge({ confidence }: { confidence: string }) {
 }
 
 /** Tabelul propriu-zis (separat ca să rămână ușor de citit). */
-function Table({ data }: { data: any }) {
-  const steps: any[] = data.funnel_steps ?? [];
+function Table({ data }: { data: FunnelCompare }) {
+  const steps = data.funnel_steps ?? [];
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -44,7 +49,7 @@ function Table({ data }: { data: any }) {
           </tr>
         </thead>
         <tbody>
-          {data.groups.map((g: any) => (
+          {data.groups.map((g: FunnelGroup) => (
             <tr
               key={g.group}
               className={`border-b border-slate-50 ${
@@ -60,7 +65,7 @@ function Table({ data }: { data: any }) {
                 {g.engaged}{" "}
                 <span className="text-xs text-slate-400">({g.engaged_pct}%)</span>
               </td>
-              {g.steps.map((st: any, i: number) => (
+              {g.steps.map((st: FunnelStepResult, i: number) => (
                 <td key={i} className="py-2 pr-3 text-right tabular-nums">
                   {st.reached}{" "}
                   <span className="text-xs text-slate-400">({st.pct_of_entries}%)</span>
@@ -101,7 +106,7 @@ export default function FunnelCompareTable({
     queryKey: ["funnel-compare", siteId, days, groupBy],
     queryFn: async () =>
       (
-        await api.get(
+        await api.get<FunnelCompare>(
           `/api/analytics/${siteId}/funnel-compare?days=${days}&group_by=${groupBy}`
         )
       ).data,
