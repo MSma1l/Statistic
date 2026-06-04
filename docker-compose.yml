@@ -37,6 +37,10 @@ services:
       FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL:-admin@statistic.app}
       FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD:-admin1234}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # AI (consultant CRO + gardian GDPR). Gol => feature-ul AI e dezactivat
+      # grațios; restul aplicației merge normal. Pune cheia în .env la producție.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-claude-opus-4-8}
     ports:
       - "${BIND_HOST:-}${BACKEND_PORT:-8000}:8000"
 

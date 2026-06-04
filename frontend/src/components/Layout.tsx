@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   BarChart3,
+  Bot,
   Globe,
   ImageIcon,
   LinkIcon,
@@ -78,9 +79,14 @@ export default function Layout() {
             </>
           )}
           {user?.is_admin && (
-            <NavLink to="/settings" className={navClass}>
-              <SettingsIcon size={18} /> Utilizatori
-            </NavLink>
+            <>
+              <NavLink to="/settings" className={navClass}>
+                <SettingsIcon size={18} /> Utilizatori
+              </NavLink>
+              <NavLink to="/admin/ai" className={navClass}>
+                <Bot size={18} /> AI & GDPR
+              </NavLink>
+            </>
           )}
         </nav>
 

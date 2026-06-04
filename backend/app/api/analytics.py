@@ -1,16 +1,14 @@
-from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_cap
-from app.core.app_settings import get_setting
-from app.core.sanitize import clean_text
 from app.database import get_db
-from app.models import Event, FunnelStep, PageSnapshot, Site, User
-from app.schemas.funnel import AiAnalyzeIn, FunnelStepIn, FunnelStepOut
-from app.services.ai_advisor import analyze_landing
+from app.models import Event, PageSnapshot, Site, User
+
+# Helperele de scope (_owned_site / _since) sunt partajate cu router-ul de
+# optimizare; trăiesc o singură dată în services/scope.py.
+from app.services.scope import owned_site as _owned_site, since as _since
 
 # Captură pagină: tipuri acceptate + limită de mărime.
 _SNAPSHOT_TYPES = {"image/png", "image/jpeg", "image/webp"}
@@ -21,17 +19,6 @@ router = APIRouter(
     tags=["analytics"],
     dependencies=[Depends(require_cap("sites"))],
 )
-
-
-async def _owned_site(site_id: int, user: User, db: AsyncSession) -> Site:
-    site = await db.get(Site, site_id)
-    if not site or site.owner_id != user.id:
-        raise HTTPException(status_code=404, detail="Site inexistent")
-    return site
-
-
-def _since(days: int) -> datetime:
-    return datetime.now(timezone.utc) - timedelta(days=days)
 
 
 @router.get("/overview")

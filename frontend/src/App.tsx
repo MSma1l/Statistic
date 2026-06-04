@@ -7,6 +7,7 @@ import { useAuth } from "./lib/auth";
 
 // Lazy-load pe pagini: chunk-ul inițial (login + shell) rămâne mic, iar paginile
 // grele (SiteDetail cu Recharts) se descarcă doar la nevoie.
+const AdminAI = lazy(() => import("./pages/AdminAI"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Gallery = lazy(() => import("./pages/Gallery"));
 const Links = lazy(() => import("./pages/Links"));
@@ -49,6 +50,7 @@ export default function App() {
           {canLinksArea(user) && <Route path="/links/:id" element={<LinkDetail />} />}
           {canLinksArea(user) && <Route path="/gallery" element={<Gallery />} />}
           {user.is_admin && <Route path="/settings" element={<Settings />} />}
+          {user.is_admin && <Route path="/admin/ai" element={<AdminAI />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

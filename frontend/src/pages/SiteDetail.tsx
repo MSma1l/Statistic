@@ -29,6 +29,7 @@ import {
 } from "recharts";
 import HeatmapOverlay from "../components/HeatmapOverlay";
 import JourneyModal from "../components/JourneyModal";
+import OptimizationSection from "../components/optimization/OptimizationSection";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
 import { api, formatDuration, type Site } from "../lib/api";
 
@@ -537,6 +538,20 @@ export default function SiteDetail() {
             data={heatmap.data}
           />
         )}
+      </div>
+
+      {/* Optimizare (A/B Marketing + AI) — pâlnie, comparație, recomandări */}
+      <div className="mt-8">
+        <h2 className="mb-1 text-xl font-bold text-slate-900">Optimizare</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Compară landing-uri și campanii pe pâlnia de conversie și cere AI-ului
+          recomandări concrete, ancorate în datele tale.
+        </p>
+        <OptimizationSection
+          siteId={siteId}
+          days={days}
+          paths={pages.data ?? []}
+        />
       </div>
 
       {openSession && (

@@ -13,6 +13,7 @@ from app.api import (
     collect,
     gallery,
     links,
+    optimization,
     redirect,
     sites,
 )
@@ -97,6 +98,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(sites.router)
 app.include_router(analytics.router)
+app.include_router(optimization.router)
 app.include_router(admin_settings.router)
 app.include_router(links.router)
 app.include_router(gallery.router)
