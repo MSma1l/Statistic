@@ -5,8 +5,12 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_cap
+from app.core.app_settings import get_setting
+from app.core.sanitize import clean_text
 from app.database import get_db
-from app.models import Event, PageSnapshot, Site, User
+from app.models import Event, FunnelStep, PageSnapshot, Site, User
+from app.schemas.funnel import AiAnalyzeIn, FunnelStepIn, FunnelStepOut
+from app.services.ai_advisor import analyze_landing
 
 # Captură pagină: tipuri acceptate + limită de mărime.
 _SNAPSHOT_TYPES = {"image/png", "image/jpeg", "image/webp"}
