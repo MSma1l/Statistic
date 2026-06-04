@@ -120,12 +120,19 @@ async def _sessions_reaching_step(
     """Sesiunile care au atins o treaptă.
 
     page         => pageview cu path-ul respectiv;
-    custom_event => event custom cu NUMELE în element_text (vezi window.statistic).
+    custom_event => event custom al cărui NUME se potrivește. Acceptăm DOUĂ locuri
+                    pentru nume, ca să fie robust:
+                      - `element_text` — unde îl pune `window.statistic("buy")` în t.js;
+                      - `props.name`   — convenția alternativă din brief (props.name == "buy").
+                    Astfel funcționează indiferent cum a fost trimis eventul.
     """
     if step.kind == "page":
         cond = (Event.type == "pageview") & (Event.path == step.value)
     else:
-        cond = (Event.type == "custom") & (Event.element_text == step.value)
+        cond = (Event.type == "custom") & (
+            (Event.element_text == step.value)
+            | (Event.props["name"].astext == step.value)
+        )
     rows = await db.execute(
         select(Event.session_id)
         .where(

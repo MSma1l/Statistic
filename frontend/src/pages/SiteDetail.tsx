@@ -45,6 +45,8 @@ export default function SiteDetail() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const [days, setDays] = useState(30);
+  // Tab activ: dashboard-urile clasice („Analize") vs noul strat „Optimizare".
+  const [tab, setTab] = useState<"analytics" | "optimize">("analytics");
   const [heatPath, setHeatPath] = useState<string>("");
   const [scrollPath, setScrollPath] = useState<string>("");
   const [openSession, setOpenSession] = useState<string | null>(null);
@@ -255,6 +257,28 @@ export default function SiteDetail() {
         </div>
       </div>
 
+      {/* Tab-uri: separă dashboard-urile clasice de stratul de optimizare. */}
+      <div className="mb-6 flex gap-1 border-b border-slate-200">
+        {([
+          { key: "analytics", label: "Analize" },
+          { key: "optimize", label: "Optimizare" },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
+              tab === t.key
+                ? "border-brand-600 text-brand-700"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "analytics" && (
+        <>
       {/* Snippet de instalat */}
       <div className="card mb-6">
         <h2 className="mb-2 font-semibold text-slate-800">
@@ -540,19 +564,19 @@ export default function SiteDetail() {
         )}
       </div>
 
+        </>
+      )}
+
       {/* Optimizare (A/B Marketing + AI) — pâlnie, comparație, recomandări */}
-      <div className="mt-8">
-        <h2 className="mb-1 text-xl font-bold text-slate-900">Optimizare</h2>
-        <p className="mb-4 text-sm text-slate-500">
-          Compară landing-uri și campanii pe pâlnia de conversie și cere AI-ului
-          recomandări concrete, ancorate în datele tale.
-        </p>
-        <OptimizationSection
-          siteId={siteId}
-          days={days}
-          paths={pages.data ?? []}
-        />
-      </div>
+      {tab === "optimize" && (
+        <div>
+          <p className="mb-4 text-sm text-slate-500">
+            Compară landing-uri și campanii pe pâlnia de conversie și cere AI-ului
+            recomandări concrete, ancorate în datele tale.
+          </p>
+          <OptimizationSection siteId={siteId} days={days} paths={pages.data ?? []} />
+        </div>
+      )}
 
       {openSession && (
         <JourneyModal

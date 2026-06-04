@@ -57,8 +57,9 @@ export default function FunnelEditor({ siteId }: { siteId: number }) {
       <p className="mb-4 text-sm text-slate-500">
         Treptele prin care trece vizitatorul. „Conversie" = a atins orice treaptă
         bifată. O treaptă e fie o <b>pagină</b> (ex: <code>/multumim</code>), fie un{" "}
-        <b>event custom</b> (numele din <code>window.statistic("buy")</code>). Fără
-        nicio conversie bifată → se folosește engagement-ul (peste prag).
+        <b>event custom</b> (numele din <code>window.statistic("buy")</code> sau{" "}
+        <code>props.name</code>). Fără nicio conversie bifată → se folosește
+        engagement-ul (peste prag).
       </p>
 
       {funnelQ.isLoading ? (
