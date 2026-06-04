@@ -14,6 +14,7 @@ from app.models import (  # noqa: F401
     Event,
     GalleryImage,
     LinkVisit,
+    PageSnapshot,
     Site,
     TrackedLink,
     User,
@@ -36,11 +37,19 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS ix_events_site_session ON events (site_id, session_id)",
     # Prag configurabil de timp activ minim per site.
     "ALTER TABLE sites ADD COLUMN IF NOT EXISTS min_engagement_seconds INTEGER NOT NULL DEFAULT 5",
+    # Dimensiunile documentului pentru suprapunerea heatmap-ului peste pagină.
+    "ALTER TABLE events ADD COLUMN IF NOT EXISTS doc_w INTEGER",
+    "ALTER TABLE events ADD COLUMN IF NOT EXISTS doc_h INTEGER",
+    # PERFORMANȚĂ: index aliniat la filtrul folosit de toate rapoartele
+    # (site_id + type + created_at). Acoperă summary/timeseries/engagement etc.
+    "CREATE INDEX IF NOT EXISTS ix_events_site_type_created ON events (site_id, type, created_at)",
 ]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Refuză pornirea în producție cu secrete/parole default.
+    settings.assert_secure()
     # Creează tabelele dacă nu există (start fresh, fără migrații manuale)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

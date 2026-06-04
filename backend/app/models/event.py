@@ -36,6 +36,10 @@ class Event(Base):
     y_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     viewport_w: Mapped[int | None] = mapped_column(Integer, nullable=True)
     viewport_h: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Dimensiunile complete ale documentului la momentul click-ului — folosite ca
+    # să suprapunem heatmap-ul peste pagina reală la proporțiile corecte.
+    doc_w: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    doc_h: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Pentru scroll: adâncimea atinsă (25/50/75/100). Pentru engagement: scroll-ul
     # MAXIM atins pe pagina respectivă.
     scroll_depth: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -68,6 +72,8 @@ class Event(Base):
         Index("ix_events_site_created", "site_id", "created_at"),
         Index("ix_events_site_path", "site_id", "path"),
         Index("ix_events_site_type", "site_id", "type"),
+        # Acoperă filtrul comun tuturor rapoartelor: site_id + type + created_at.
+        Index("ix_events_site_type_created", "site_id", "type", "created_at"),
         # Reconstrucția traseului unui vizitator (jurnal) și a sesiunilor.
         Index("ix_events_site_visitor_created", "site_id", "visitor_id", "created_at"),
         Index("ix_events_site_session", "site_id", "session_id"),

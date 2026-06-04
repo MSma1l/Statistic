@@ -1,12 +1,16 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_cap
 from app.database import get_db
-from app.models import Event, Site, User
+from app.models import Event, PageSnapshot, Site, User
+
+# Captură pagină: tipuri acceptate + limită de mărime.
+_SNAPSHOT_TYPES = {"image/png", "image/jpeg", "image/webp"}
+_SNAPSHOT_MAX_BYTES = 8 * 1024 * 1024  # 8 MB
 
 router = APIRouter(
     prefix="/api/analytics",
@@ -36,29 +40,27 @@ async def summary(
     site = await _owned_site(site_id, user, db)
     since = _since(days)
     min_ms = site.min_engagement_seconds * 1000
-    base = select(Event).where(Event.site_id == site_id, Event.created_at >= since)
 
-    pageviews = await db.scalar(
-        select(func.count()).select_from(
-            base.where(Event.type == "pageview").subquery()
+    # Un singur query pentru cele 4 contoare de bază (în loc de 4 scanări).
+    c = (
+        await db.execute(
+            select(
+                func.count().filter(Event.type == "pageview").label("pageviews"),
+                func.count().filter(Event.type == "click").label("clicks"),
+                func.count(func.distinct(Event.visitor_id))
+                .filter(Event.visitor_id != "")
+                .label("visitors"),
+                func.count(func.distinct(Event.session_id))
+                .filter(Event.session_id != "")
+                .label("sessions"),
+            ).where(Event.site_id == site_id, Event.created_at >= since)
         )
-    )
-    clicks = await db.scalar(
-        select(func.count()).select_from(base.where(Event.type == "click").subquery())
-    )
-    visitors = await db.scalar(
-        select(func.count(func.distinct(Event.visitor_id))).where(
-            Event.site_id == site_id,
-            Event.created_at >= since,
-            Event.visitor_id != "",
-        )
-    )
-    sessions = await db.scalar(
-        select(func.count(func.distinct(Event.session_id))).where(
-            Event.site_id == site_id,
-            Event.created_at >= since,
-            Event.session_id != "",
-        )
+    ).one()
+    pageviews, clicks, visitors, sessions = (
+        c.pageviews,
+        c.clicks,
+        c.visitors,
+        c.sessions,
     )
 
     # Timp mediu activ pe pagină. Întâi adunăm delta-urile de engagement per
@@ -259,7 +261,32 @@ async def heatmap(
         .limit(5000)
     )
     points = [{"x": r.x_pct, "y": r.y_pct} for r in result]
-    return {"path": path, "points": points, "count": len(points)}
+
+    # Dimensiunile reprezentative ale paginii: lățimea cea mai frecventă și
+    # înălțimea maximă (ca să nu tăiem nimic la suprapunerea peste pagina reală).
+    dims = await db.execute(
+        select(
+            func.mode().within_group(Event.doc_w).label("doc_w"),
+            # `mode()` (nu `max()`) și pentru înălțime: punctele de click au fost
+            # calculate ca procent din doc_h-ul propriu fiecărui vizitator, deci
+            # folosim aceeași statistică pentru ambele dimensiuni (aliniere corectă).
+            func.mode().within_group(Event.doc_h).label("doc_h"),
+        ).where(
+            Event.site_id == site_id,
+            Event.created_at >= since,
+            Event.type == "click",
+            Event.path == path,
+            Event.doc_w.isnot(None),
+        )
+    )
+    d = dims.one()
+    return {
+        "path": path,
+        "points": points,
+        "count": len(points),
+        "doc_w": d.doc_w,
+        "doc_h": d.doc_h,
+    }
 
 
 @router.get("/{site_id}/paths")
@@ -366,7 +393,11 @@ async def sessions(
                 Event.utm_campaign,
             )
             .distinct(Event.session_id)
-            .where(Event.site_id == site_id, Event.session_id.in_(session_ids))
+            .where(
+                Event.site_id == site_id,
+                Event.created_at >= since,
+                Event.session_id.in_(session_ids),
+            )
             .order_by(Event.session_id, Event.created_at)
         )
         for r in land_rows:
@@ -589,3 +620,107 @@ async def campaigns(
         }
         for r in rows
     ]
+
+
+# ============================================================================
+#  CAPTURĂ PAGINĂ (screenshot) pentru fundalul heatmap-ului — modul „Imagine"
+# ============================================================================
+
+
+async def _get_snapshot(site_id: int, path: str, db: AsyncSession) -> PageSnapshot | None:
+    return await db.scalar(
+        select(PageSnapshot).where(
+            PageSnapshot.site_id == site_id, PageSnapshot.path == path
+        )
+    )
+
+
+@router.post("/{site_id}/snapshot")
+async def upload_snapshot(
+    site_id: int,
+    path: str = Query(..., max_length=1024),
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Încarcă o captură a paginii (una per pagină; o înlocuiește pe cea veche)."""
+    await _owned_site(site_id, user, db)
+    if file.content_type not in _SNAPSHOT_TYPES:
+        raise HTTPException(status_code=400, detail="Doar PNG / JPEG / WEBP.")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Fișier gol.")
+    if len(data) > _SNAPSHOT_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Imaginea depășește 8 MB.")
+
+    # Upsert: ștergem captura veche a paginii și o punem pe cea nouă.
+    await db.execute(
+        delete(PageSnapshot).where(
+            PageSnapshot.site_id == site_id, PageSnapshot.path == path
+        )
+    )
+    snap = PageSnapshot(
+        site_id=site_id,
+        path=path,
+        content_type=file.content_type,
+        size_bytes=len(data),
+        data=data,
+    )
+    db.add(snap)
+    await db.flush()
+    return {"has": True, "size_bytes": len(data), "content_type": file.content_type}
+
+
+@router.get("/{site_id}/snapshot")
+async def snapshot_meta(
+    site_id: int,
+    path: str = Query(..., max_length=1024),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Spune dacă există o captură pentru pagina dată (pentru UI)."""
+    await _owned_site(site_id, user, db)
+    snap = await _get_snapshot(site_id, path, db)
+    if not snap:
+        return {"has": False}
+    return {
+        "has": True,
+        "content_type": snap.content_type,
+        "size_bytes": snap.size_bytes,
+        "created_at": snap.created_at.isoformat(),
+    }
+
+
+@router.get("/{site_id}/snapshot/raw")
+async def snapshot_raw(
+    site_id: int,
+    path: str = Query(..., max_length=1024),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Servește imaginea capturii (fundalul heatmap-ului)."""
+    await _owned_site(site_id, user, db)
+    snap = await _get_snapshot(site_id, path, db)
+    if not snap:
+        raise HTTPException(status_code=404, detail="Nicio captură pentru pagina asta.")
+    return Response(
+        content=snap.data,
+        media_type=snap.content_type,
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@router.delete("/{site_id}/snapshot", status_code=204)
+async def delete_snapshot(
+    site_id: int,
+    path: str = Query(..., max_length=1024),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Șterge captura paginii."""
+    await _owned_site(site_id, user, db)
+    await db.execute(
+        delete(PageSnapshot).where(
+            PageSnapshot.site_id == site_id, PageSnapshot.path == path
+        )
+    )

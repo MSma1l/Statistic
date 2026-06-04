@@ -17,6 +17,33 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 zile
     COOKIE_NAME: str = "statistic_token"
     COOKIE_SECURE: bool = False
+    # Sare separată pentru hash-ul de IP (ca să nu refolosim secretul JWT).
+    # Gol => derivă din JWT_SECRET (compatibil cu instalările existente).
+    IP_HASH_SALT: str = ""
+
+    @property
+    def ip_salt(self) -> str:
+        return self.IP_HASH_SALT or (self.JWT_SECRET + "::ip")
+
+    def is_production(self) -> bool:
+        """Considerăm producție când rulează pe HTTPS sau pe un domeniu real."""
+        return self.COOKIE_SECURE or "localhost" not in self.BASE_URL
+
+    def assert_secure(self) -> None:
+        """Fail-fast la pornire dacă în producție rămân secrete default."""
+        if not self.is_production():
+            return
+        problems = []
+        if self.JWT_SECRET in ("", "change-me-in-production"):
+            problems.append("JWT_SECRET")
+        if self.FIRST_ADMIN_PASSWORD == "admin1234":
+            problems.append("FIRST_ADMIN_PASSWORD")
+        if problems:
+            raise RuntimeError(
+                "Configurare nesigură în producție: setează "
+                + ", ".join(problems)
+                + " în .env (ex: openssl rand -hex 32)."
+            )
 
     # URL-uri
     BASE_URL: str = "http://localhost:8000"

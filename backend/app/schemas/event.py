@@ -13,6 +13,9 @@ class EventIn(BaseModel):
     y_pct: float | None = None
     viewport_w: int | None = None
     viewport_h: int | None = None
+    # Dimensiunile complete ale documentului (pentru suprapunerea heatmap-ului).
+    doc_w: int | None = Field(default=None, ge=0, le=100_000)
+    doc_h: int | None = Field(default=None, ge=0, le=1_000_000)
     scroll_depth: int | None = None
     # Timp activ pe pagină (ms), trimis cu evenimentul `engagement`.
     duration_ms: int | None = Field(default=None, ge=0, le=86_400_000)

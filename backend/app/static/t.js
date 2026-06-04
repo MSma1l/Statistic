@@ -13,6 +13,12 @@
   var SITE = script.getAttribute("data-site");
   if (!SITE) return;
 
+  // Mod preview: când pagina e încărcată în heatmap-ul „Live" din dashboard,
+  // URL-ul conține _st_preview => NU înregistrăm nimic (altfel am umfla datele).
+  try {
+    if (new URLSearchParams(location.search).has("_st_preview")) return;
+  } catch (e) {}
+
   var ENDPOINT;
   try {
     ENDPOINT = new URL(script.src).origin + "/px/collect";
@@ -160,11 +166,19 @@
 
   function accumulate() {
     // Adaugă timpul scurs de la ultima reactivare, dacă pagina e vizibilă.
-    if (isVisible) {
-      activeMs += Date.now() - lastResume;
-      lastResume = Date.now();
-    }
+    if (!isVisible) return;
+    var now = Date.now();
+    var delta = now - lastResume;
+    lastResume = now;
+    // Plafon: dacă au trecut peste 60s între măsurători, tab-ul a fost probabil
+    // suspendat în fundal (fără visibilitychange, cazuri de mobil) — nu contăm
+    // acel timp ca „activ". Heartbeat-ul de mai jos ține delta-urile mici.
+    if (delta > 0 && delta < 60000) activeMs += delta;
   }
+
+  // Heartbeat: măsoară timpul activ în pași mici (5s) cât pagina e vizibilă.
+  // Astfel cititul îndelungat se numără corect, dar pauzele lungi (fundal) nu.
+  setInterval(accumulate, 5000);
 
   function sendEngagement() {
     accumulate();
@@ -213,6 +227,13 @@
     _push.apply(this, arguments);
     onSpaNavigate();
   };
+  // Și replaceState: multe routere SPA îl folosesc (ex. redirect/replace),
+  // altfel am pierde pageview-ul noii pagini.
+  var _replace = history.replaceState;
+  history.replaceState = function () {
+    _replace.apply(this, arguments);
+    onSpaNavigate();
+  };
   window.addEventListener("popstate", onSpaNavigate);
 
   // --- Click + coordonate pentru heatmap + context (link/buton) ---
@@ -243,6 +264,10 @@
         element_text: text.slice(0, 120),
         x_pct: Math.round(x * 100) / 100,
         y_pct: Math.round(y * 100) / 100,
+        // Dimensiunile complete ale documentului: necesare ca să suprapunem
+        // heatmap-ul peste pagina reală la proporțiile corecte.
+        doc_w: docW,
+        doc_h: docH,
         props: { href: (href || "").slice(0, 512), tag: (el.tagName || "").toLowerCase() },
       });
     },

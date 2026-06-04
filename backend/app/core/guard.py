@@ -65,7 +65,7 @@ _SECURITY_HEADERS = {
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "img-src 'self' data:; "
-        "connect-src 'self' *; "
+        "connect-src 'self'; "
         "frame-ancestors 'none'"
     ),
 }
@@ -100,9 +100,11 @@ class SecurityGuardMiddleware:
             await self._reject(send)
             return
 
-        # 2) Citește corpul (îl re-injectăm pentru handler-ul real)
+        # 2) Citește corpul (îl re-injectăm pentru handler-ul real).
+        #    Pe rutele relaxate (ex. /px/collect, cea mai frecventă) NU bufferizăm
+        #    corpul — îl lăsăm să curgă direct, economisind o copie pe fiecare beacon.
         body = b""
-        if scope["method"] in ("POST", "PUT", "PATCH", "DELETE"):
+        if not relaxed and scope["method"] in ("POST", "PUT", "PATCH", "DELETE"):
             chunks: list[bytes] = []
             more = True
             while more:
@@ -111,7 +113,7 @@ class SecurityGuardMiddleware:
                 more = message.get("more_body", False)
             body = b"".join(chunks)
 
-            if not relaxed and not is_binary_body and body:
+            if not is_binary_body and body:
                 text = body.decode("utf-8", "ignore")
                 if is_malicious(text):
                     await self._reject(send)

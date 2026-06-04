@@ -15,6 +15,10 @@ from app.schemas.auth import (
     UserPermissionsUpdate,
 )
 
+# Hash „momeală": îl verificăm când user-ul nu există, ca timpul de răspuns să fie
+# constant (altfel diferența de timp ar dezvălui ce email-uri sunt înregistrate).
+_DUMMY_HASH = hash_password("constant-time-dummy-password")
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -41,7 +45,13 @@ async def login(
 ):
     result = await db.execute(select(User).where(User.email == payload.email.lower()))
     user = result.scalar_one_or_none()
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not user:
+        # Cheltuim același timp ca o verificare reală (anti enumerare prin timing).
+        verify_password(payload.password, _DUMMY_HASH)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Email sau parolă greșite"
+        )
+    if not verify_password(payload.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Email sau parolă greșite"
         )

@@ -1,3 +1,5 @@
+import json
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request, Response, status
@@ -36,6 +38,29 @@ def _clean_utm(value: str | None) -> str | None:
     return clean_text(value)[:128] or None
 
 
+# Limite pentru `props` (input public, neîncrezut) ca să evităm umflarea DB-ului.
+_PROPS_MAX_KEYS = 25
+_PROPS_MAX_BYTES = 2048
+
+
+def _clean_props(props: dict | None) -> dict | None:
+    """Acceptă doar obiecte mici, plate, cu valori simple (anti-DoS de stocare)."""
+    if not props or not isinstance(props, dict):
+        return None
+    out: dict = {}
+    for k, v in list(props.items())[:_PROPS_MAX_KEYS]:
+        if isinstance(v, (str, int, float, bool)) or v is None:
+            out[str(k)[:64]] = v[:512] if isinstance(v, str) else v
+    # Plafon dur pe mărimea serializată.
+    try:
+        if len(json.dumps(out)) > _PROPS_MAX_BYTES:
+            return None
+    except (TypeError, ValueError):
+        return None
+    return out or None
+
+
+@lru_cache(maxsize=4096)
 def _device_type(ua_string: str) -> str:
     try:
         ua = parse_ua(ua_string)
@@ -88,6 +113,8 @@ async def collect(
                 y_pct=ev.y_pct,
                 viewport_w=ev.viewport_w,
                 viewport_h=ev.viewport_h,
+                doc_w=ev.doc_w,
+                doc_h=ev.doc_h,
                 scroll_depth=ev.scroll_depth,
                 duration_ms=ev.duration_ms,
                 utm_source=_clean_utm(ev.utm_source),
@@ -97,7 +124,7 @@ async def collect(
                 session_id=ev.session_id[:64],
                 user_agent=ua_string,
                 device_type=device,
-                props=ev.props,
+                props=_clean_props(ev.props),
             )
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -39,4 +39,4 @@ def hash_ip(ip: str) -> str:
     """Stochează IP-ul doar ca hash (fără PII brut)."""
     if not ip:
         return ""
-    return hashlib.sha256((ip + settings.JWT_SECRET).encode()).hexdigest()[:32]
+    return hashlib.sha256((ip + settings.ip_salt).encode()).hexdigest()[:32]

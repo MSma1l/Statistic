@@ -14,11 +14,13 @@ export default function HeatmapCanvas({
   width = 900,
   height = 600,
   radius = 28,
+  className = "w-full rounded-xl border border-slate-200 bg-slate-50",
 }: {
   points: HeatPoint[];
   width?: number;
   height?: number;
   radius?: number;
+  className?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -61,12 +63,7 @@ export default function HeatmapCanvas({
   }, [points, width, height, radius]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={width}
-      height={height}
-      className="w-full rounded-xl border border-slate-200 bg-slate-50"
-    />
+    <canvas ref={canvasRef} width={width} height={height} className={className} />
   );
 }
 

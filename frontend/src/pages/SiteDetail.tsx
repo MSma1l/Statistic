@@ -27,7 +27,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import HeatmapCanvas from "../components/HeatmapCanvas";
+import HeatmapOverlay from "../components/HeatmapOverlay";
 import JourneyModal from "../components/JourneyModal";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
 import { api, formatDuration, type Site } from "../lib/api";
@@ -525,18 +525,17 @@ export default function SiteDetail() {
         </div>
         {!heatPath ? (
           <p className="py-8 text-center text-sm text-slate-400">
-            Selectează o pagină pentru a vedea unde apasă vizitatorii.
+            Selectează o pagină pentru a vedea unde apasă vizitatorii, peste pagina reală.
           </p>
         ) : heatmap.isLoading ? (
           <Spinner />
         ) : (
-          <div>
-            <p className="mb-3 text-sm text-slate-500">
-              {heatmap.data?.count ?? 0} click-uri pe <code>{heatPath}</code>.
-              Pozițiile sunt relative la dimensiunea paginii.
-            </p>
-            <HeatmapCanvas points={heatmap.data?.points ?? []} />
-          </div>
+          <HeatmapOverlay
+            siteId={siteId}
+            path={heatPath}
+            domain={site.data.domain}
+            data={heatmap.data}
+          />
         )}
       </div>
 
