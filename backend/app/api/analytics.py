@@ -61,18 +61,29 @@ async def summary(
         )
     )
 
-    # Timp mediu activ pe pagină (din evenimentele `engagement`), ignorând
-    # vizitele sub pragul de atenție configurat pe site.
-    avg_ms = await db.scalar(
-        select(func.avg(Event.duration_ms)).where(
+    # Timp mediu activ pe pagină. Întâi adunăm delta-urile de engagement per
+    # vizită (sesiune + pagină), apoi mediem doar vizitele care trec pragul.
+    visit_ms = (
+        select(
+            Event.session_id.label("sid"),
+            func.sum(Event.duration_ms).label("ms"),
+        )
+        .where(
             Event.site_id == site_id,
             Event.created_at >= since,
             Event.type == "engagement",
-            Event.duration_ms >= min_ms,
+            Event.duration_ms.isnot(None),
         )
+        .group_by(Event.session_id, Event.path)
+        .subquery()
+    )
+    avg_ms = await db.scalar(
+        select(func.avg(visit_ms.c.ms)).where(visit_ms.c.ms >= min_ms)
     )
 
-    # Bounce rate: % din sesiuni cu o singură pagină vizitată.
+    # Bounce rate (engagement-aware, ca GA4): o sesiune e „bounce" dacă a văzut o
+    # singură pagină ȘI nu a trecut pragul de atenție (a plecat repede). Astfel o
+    # vizită care a stat peste prag NU mai e bounce, chiar pe un landing de o pagină.
     sess_pv = (
         select(Event.session_id, func.count().label("pv"))
         .where(
@@ -84,9 +95,12 @@ async def summary(
         .group_by(Event.session_id)
         .subquery()
     )
+    engaged_sids = select(visit_ms.c.sid).where(visit_ms.c.ms >= min_ms)
     total_sess = await db.scalar(select(func.count()).select_from(sess_pv)) or 0
     bounced = await db.scalar(
-        select(func.count()).select_from(sess_pv).where(sess_pv.c.pv == 1)
+        select(func.count())
+        .select_from(sess_pv)
+        .where(sess_pv.c.pv == 1, sess_pv.c.session_id.notin_(engaged_sids))
     ) or 0
 
     return {
@@ -290,7 +304,6 @@ async def sessions(
     min_ms = site.min_engagement_seconds * 1000
 
     # 1) Agregat per sesiune: timpi, contoare, device.
-    #    Timpul activ numără doar engagement-urile peste pragul de atenție.
     agg = await db.execute(
         select(
             Event.session_id,
@@ -300,9 +313,6 @@ async def sessions(
             func.max(Event.device_type).label("device"),
             func.count().filter(Event.type == "pageview").label("pageviews"),
             func.count().filter(Event.type == "click").label("clicks"),
-            func.coalesce(
-                func.sum(Event.duration_ms).filter(Event.duration_ms >= min_ms), 0
-            ).label("active_ms"),
         )
         .where(
             Event.site_id == site_id,
@@ -315,6 +325,32 @@ async def sessions(
     )
     rows = agg.all()
     session_ids = [r.session_id for r in rows]
+
+    # 1b) Timp activ per sesiune = suma vizitelor (sesiune+pagină) care trec
+    #     pragul. Calculat separat ca să adunăm corect delta-urile de engagement.
+    active_by_session: dict[str, int] = {}
+    if session_ids:
+        visit_ms = (
+            select(
+                Event.session_id.label("sid"),
+                func.sum(Event.duration_ms).label("ms"),
+            )
+            .where(
+                Event.site_id == site_id,
+                Event.created_at >= since,
+                Event.type == "engagement",
+                Event.duration_ms.isnot(None),
+                Event.session_id.in_(session_ids),
+            )
+            .group_by(Event.session_id, Event.path)
+            .subquery()
+        )
+        active_rows = await db.execute(
+            select(visit_ms.c.sid, func.sum(visit_ms.c.ms))
+            .where(visit_ms.c.ms >= min_ms)
+            .group_by(visit_ms.c.sid)
+        )
+        active_by_session = {r[0]: r[1] for r in active_rows}
 
     # 2) Primul eveniment al fiecărei sesiuni (landing + sursă + campanie).
     #    DISTINCT ON (session_id) + ORDER BY created_at => primul în timp.
@@ -346,7 +382,7 @@ async def sessions(
                 "first_seen": r.first_seen.isoformat(),
                 "last_seen": r.last_seen.isoformat(),
                 "duration_s": round((r.last_seen - r.first_seen).total_seconds()),
-                "active_s": round((r.active_ms or 0) / 1000),
+                "active_s": round(active_by_session.get(r.session_id, 0) / 1000),
                 "pageviews": r.pageviews,
                 "clicks": r.clicks,
                 "device": r.device or "unknown",
@@ -429,19 +465,26 @@ async def engagement(
     )
     views = {r.path: r.views for r in pv_rows}
 
-    eng_rows = await db.execute(
+    # Timp mediu = media, pe pagină, a totalului de engagement per vizită care
+    # trece pragul (delta-urile aceleiași vizite sunt întâi adunate).
+    visit_ms = (
         select(
-            Event.path,
-            func.avg(Event.duration_ms).label("avg_ms"),
-            func.max(Event.scroll_depth).label("max_scroll"),
+            Event.path.label("path"),
+            func.sum(Event.duration_ms).label("ms"),
         )
         .where(
             Event.site_id == site_id,
             Event.created_at >= since,
             Event.type == "engagement",
-            Event.duration_ms >= min_ms,
+            Event.duration_ms.isnot(None),
         )
-        .group_by(Event.path)
+        .group_by(Event.session_id, Event.path)
+        .subquery()
+    )
+    eng_rows = await db.execute(
+        select(visit_ms.c.path, func.avg(visit_ms.c.ms).label("avg_ms"))
+        .where(visit_ms.c.ms >= min_ms)
+        .group_by(visit_ms.c.path)
     )
     eng = {r.path: r for r in eng_rows}
 

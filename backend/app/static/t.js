@@ -112,8 +112,11 @@
 
   function track(type, extra) {
     var ev = {
+      // DOAR pathname (fără query): aceeași pagină deschisă cu UTM-uri diferite
+      // se grupează corect în rapoarte (heatmap/scroll/top-pages). UTM-urile sunt
+      // capturate separat. Override-uit prin `extra.path` pentru engagement (SPA).
       type: type,
-      path: location.pathname + location.search,
+      path: location.pathname,
       referrer: document.referrer || "",
       session_id: sessionId,
       viewport_w: window.innerWidth,
@@ -149,7 +152,7 @@
   //  Cronometrăm doar cât pagina e vizibilă (tab activ). La plecare/navigare
   //  trimitem un eveniment `engagement` cu durata și scroll-ul maxim.
   // ===========================================================================
-  var currentPath = location.pathname + location.search;
+  var currentPath = location.pathname;
   var activeMs = 0; // ms acumulați cât pagina a fost vizibilă
   var lastResume = Date.now(); // momentul ultimei „reactivări"
   var isVisible = document.visibilityState !== "hidden";
@@ -165,12 +168,15 @@
 
   function sendEngagement() {
     accumulate();
-    if (activeMs < 300) return; // ignoră vizitele „fantomă" (<0.3s)
+    if (activeMs < 250) return; // sub prag de zgomot; rămâne acumulat pt. data viitoare
+    // Trimitem DELTA (timpul de la ultima trimitere), apoi resetăm. Backend-ul
+    // adună deltele per (sesiune, pagină) => fără dublă numărare la hide/show.
     track("engagement", {
       path: currentPath,
       duration_ms: Math.min(activeMs, 86400000),
       scroll_depth: maxScroll,
     });
+    activeMs = 0;
   }
 
   function resetPage() {
@@ -179,7 +185,7 @@
     lastResume = Date.now();
     maxScroll = 0;
     scrollHits = { 25: false, 50: false, 75: false, 100: false };
-    currentPath = location.pathname + location.search;
+    currentPath = location.pathname;
   }
 
   // --- Pageview ---
@@ -193,8 +199,11 @@
   pageview();
 
   // SPA: la schimbarea de istoric închidem engagement-ul paginii vechi, apoi
-  // resetăm și înregistrăm noul pageview.
+  // resetăm și înregistrăm noul pageview — DOAR dacă s-a schimbat efectiv
+  // pagina (pathname). Un simplu salt la o ancoră internă (#pricing) sau o
+  // schimbare de query NU e o pagină nouă, deci nu o dublăm.
   function onSpaNavigate() {
+    if (location.pathname === currentPath) return;
     sendEngagement();
     resetPage();
     pageview();

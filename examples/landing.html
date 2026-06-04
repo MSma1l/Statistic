@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudNote — notițe care se sincronizează peste tot</title>
+
+  <!-- ================================================================== -->
+  <!--  PIXELUL STATISTIC — conectat la softul nostru local (port 8010)   -->
+  <!--  data-site = cheia site-ului „Landing Demo" din dashboard.         -->
+  <!-- ================================================================== -->
+  <script async src="http://localhost:8010/px/t.js" data-site="841062fe49274900b1d617dcb8e49eef"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: #0f172a; line-height: 1.6; background: #fff;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 20px 24px; position: sticky; top: 0; background: #fff;
+      border-bottom: 1px solid #eef2f7; z-index: 10;
+    }
+    .logo { font-weight: 800; font-size: 20px; color: #1f47f5; }
+    nav a { margin-left: 24px; text-decoration: none; color: #475569; font-size: 15px; }
+    .btn {
+      display: inline-block; background: #1f47f5; color: #fff; padding: 12px 24px;
+      border-radius: 12px; text-decoration: none; font-weight: 600; border: 0;
+      cursor: pointer; font-size: 15px;
+    }
+    .btn.ghost { background: #eef2ff; color: #1f47f5; }
+    .hero { text-align: center; padding: 80px 0; }
+    .hero h1 { font-size: 48px; line-height: 1.1; letter-spacing: -1px; }
+    .hero p { font-size: 20px; color: #64748b; margin: 20px auto 32px; max-width: 600px; }
+    section { padding: 64px 0; border-top: 1px solid #f1f5f9; }
+    h2 { font-size: 32px; text-align: center; margin-bottom: 40px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .card {
+      border: 1px solid #eef2f7; border-radius: 16px; padding: 28px; background: #fafbff;
+    }
+    .card h3 { font-size: 18px; margin-bottom: 8px; }
+    .card p { color: #64748b; font-size: 15px; }
+    .price { text-align: center; }
+    .price .num { font-size: 44px; font-weight: 800; }
+    .spacer { height: 120px; }
+    footer { padding: 48px 0; text-align: center; color: #94a3b8; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">☁ CloudNote</div>
+    <nav>
+      <a href="#features">Funcții</a>
+      <a href="#pricing">Prețuri</a>
+      <a href="#" id="nav-login">Login</a>
+    </nav>
+  </header>
+
+  <div class="wrap">
+    <!-- HERO -->
+    <div class="hero">
+      <h1>Notițele tale, peste tot.</h1>
+      <p>CloudNote îți sincronizează ideile pe telefon, laptop și web — instant, fără efort.</p>
+      <a href="#pricing" class="btn" id="cta-hero">Începe gratuit</a>
+      <a href="#features" class="btn ghost" id="cta-demo">Vezi demo</a>
+    </div>
+
+    <!-- FEATURES -->
+    <section id="features">
+      <h2>De ce CloudNote?</h2>
+      <div class="grid">
+        <div class="card"><h3>⚡ Rapid</h3><p>Se deschide în mai puțin de o secundă, oriunde.</p></div>
+        <div class="card"><h3>🔒 Privat</h3><p>Criptare end-to-end. Notițele tale rămân ale tale.</p></div>
+        <div class="card"><h3>🔄 Sincron</h3><p>Modifici pe telefon, apare pe laptop instant.</p></div>
+        <div class="card"><h3>📎 Atașamente</h3><p>Imagini, PDF-uri și fișiere, direct în notiță.</p></div>
+        <div class="card"><h3>🔍 Căutare</h3><p>Găsești orice notiță în milisecunde.</p></div>
+        <div class="card"><h3>🌙 Dark mode</h3><p>Ușor pentru ochi, zi sau noapte.</p></div>
+      </div>
+    </section>
+
+    <div class="spacer"></div>
+
+    <!-- PRICING -->
+    <section id="pricing">
+      <h2>Prețuri simple</h2>
+      <div class="grid">
+        <div class="card price">
+          <h3>Gratuit</h3><div class="num">0€</div>
+          <p>Până la 100 de notițe.</p><br />
+          <button class="btn ghost" id="buy-free">Alege Gratuit</button>
+        </div>
+        <div class="card price">
+          <h3>Pro</h3><div class="num">5€</div>
+          <p>Notițe nelimitate + atașamente.</p><br />
+          <button class="btn" id="buy-pro">Alege Pro</button>
+        </div>
+        <div class="card price">
+          <h3>Echipă</h3><div class="num">12€</div>
+          <p>Colaborare în timp real.</p><br />
+          <button class="btn ghost" id="buy-team">Alege Echipă</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="spacer"></div>
+
+    <!-- FINAL CTA -->
+    <section style="text-align:center">
+      <h2>Gata să începi?</h2>
+      <a href="#" class="btn" id="cta-final">Creează cont gratuit</a>
+    </section>
+  </div>
+
+  <footer>© 2026 CloudNote — pagină de test pentru pixelul Statistic.</footer>
+
+  <script>
+    // Demonstrăm și evenimentul custom: îl declanșăm când cineva alege „Pro".
+    document.getElementById("buy-pro").addEventListener("click", function () {
+      if (window.statistic) window.statistic("alege_plan", { plan: "pro", pret: 5 });
+    });
+  </script>
+</body>
+</html>
