@@ -30,6 +30,96 @@ def _since(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
 
 
+@router.get("/overview")
+async def pixel_overview(
+    days: int = Query(30, ge=1, le=365),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Statistici agregate peste TOATE site-urile userului (tab-ul Pixel din dashboard)."""
+    since = _since(days)
+    owned = select(Site.id).where(Site.owner_id == user.id).scalar_subquery()
+
+    sites_count = await db.scalar(
+        select(func.count()).where(Site.owner_id == user.id)
+    )
+
+    # Contoare globale (o singură scanare).
+    c = (
+        await db.execute(
+            select(
+                func.count().filter(Event.type == "pageview").label("pageviews"),
+                func.count().filter(Event.type == "click").label("clicks"),
+                func.count(func.distinct(Event.visitor_id))
+                .filter(Event.visitor_id != "")
+                .label("visitors"),
+                func.count(func.distinct(Event.session_id))
+                .filter(Event.session_id != "")
+                .label("sessions"),
+            ).where(Event.site_id.in_(owned), Event.created_at >= since)
+        )
+    ).one()
+
+    # Site-uri de top (după vizualizări în perioada aleasă).
+    pv = func.count(Event.id).filter(
+        Event.type == "pageview", Event.created_at >= since
+    )
+    top_site_rows = await db.execute(
+        select(Site.id, Site.name, Site.domain, pv.label("views"))
+        .outerjoin(Event, Event.site_id == Site.id)
+        .where(Site.owner_id == user.id)
+        .group_by(Site.id)
+        .order_by(pv.desc())
+        .limit(8)
+    )
+    top_sites = [
+        {"id": r.id, "name": r.name, "domain": r.domain, "views": r.views or 0}
+        for r in top_site_rows
+    ]
+
+    # Pagini de top (peste toate site-urile).
+    page_rows = await db.execute(
+        select(Event.path, func.count().label("views"))
+        .where(
+            Event.site_id.in_(owned),
+            Event.created_at >= since,
+            Event.type == "pageview",
+        )
+        .group_by(Event.path)
+        .order_by(func.count().desc())
+        .limit(10)
+    )
+    top_pages = [{"path": r.path or "/", "views": r.views} for r in page_rows]
+
+    # Evoluție vizualizări/click-uri în timp (toate site-urile).
+    day = func.date_trunc("day", Event.created_at).label("day")
+    ts_rows = await db.execute(
+        select(
+            day,
+            func.count().filter(Event.type == "pageview").label("pageviews"),
+            func.count().filter(Event.type == "click").label("clicks"),
+        )
+        .where(Event.site_id.in_(owned), Event.created_at >= since)
+        .group_by(day)
+        .order_by(day)
+    )
+    timeseries = [
+        {"day": r.day.date().isoformat(), "pageviews": r.pageviews, "clicks": r.clicks}
+        for r in ts_rows
+    ]
+
+    return {
+        "sites_count": sites_count or 0,
+        "pageviews": c.pageviews or 0,
+        "clicks": c.clicks or 0,
+        "visitors": c.visitors or 0,
+        "sessions": c.sessions or 0,
+        "top_sites": top_sites,
+        "top_pages": top_pages,
+        "timeseries": timeseries,
+    }
+
+
 @router.get("/{site_id}/summary")
 async def summary(
     site_id: int,

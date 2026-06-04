@@ -155,33 +155,38 @@ async def links_overview(
         )
     )
 
-    # Top linkuri (care aduc cele mai multe intrări/lead-uri)
-    top_rows = await db.execute(
-        select(
-            TrackedLink.id,
-            TrackedLink.name,
-            TrackedLink.slug,
-            TrackedLink.location_label,
-            TrackedLink.kind,
-            func.count(LinkVisit.id).label("visits"),
+    # Top elemente (care aduc cele mai multe intrări/lead-uri), separat pe tip:
+    # top linkuri și top QR coduri.
+    async def _top(kind: str) -> list[dict]:
+        rows = await db.execute(
+            select(
+                TrackedLink.id,
+                TrackedLink.name,
+                TrackedLink.slug,
+                TrackedLink.location_label,
+                TrackedLink.kind,
+                func.count(LinkVisit.id).label("visits"),
+            )
+            .outerjoin(LinkVisit, LinkVisit.link_id == TrackedLink.id)
+            .where(TrackedLink.owner_id == user.id, TrackedLink.kind == kind)
+            .group_by(TrackedLink.id)
+            .order_by(func.count(LinkVisit.id).desc())
+            .limit(6)
         )
-        .outerjoin(LinkVisit, LinkVisit.link_id == TrackedLink.id)
-        .where(TrackedLink.owner_id == user.id, TrackedLink.kind.in_(kinds))
-        .group_by(TrackedLink.id)
-        .order_by(func.count(LinkVisit.id).desc())
-        .limit(8)
-    )
-    top_links = [
-        {
-            "id": r.id,
-            "name": r.name or r.slug,
-            "slug": r.slug,
-            "location_label": r.location_label,
-            "kind": r.kind,
-            "visits": r.visits,
-        }
-        for r in top_rows
-    ]
+        return [
+            {
+                "id": r.id,
+                "name": r.name or r.slug,
+                "slug": r.slug,
+                "location_label": r.location_label,
+                "kind": r.kind,
+                "visits": r.visits,
+            }
+            for r in rows
+        ]
+
+    top_links = await _top("link") if "link" in kinds else []
+    top_qr = await _top("qr") if "qr" in kinds else []
 
     # Unde s-au deschis cel mai mult (după locația indicată)
     loc_rows = await db.execute(
@@ -216,6 +221,7 @@ async def links_overview(
         "scans": scans or 0,
         "clicks": clicks or 0,
         "top_links": top_links,
+        "top_qr": top_qr,
         "by_location": by_location,
         "timeseries": timeseries,
     }

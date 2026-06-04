@@ -6,12 +6,23 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 
-from app.api import analytics, auth, collect, gallery, links, redirect, sites
+from app.api import (
+    admin_settings,
+    analytics,
+    auth,
+    collect,
+    gallery,
+    links,
+    redirect,
+    sites,
+)
 from app.config import settings
 from app.core.guard import SecurityGuardMiddleware, limiter
 from app.database import Base, engine
 from app.models import (  # noqa: F401
+    AppSetting,
     Event,
+    FunnelStep,
     GalleryImage,
     LinkVisit,
     PageSnapshot,
@@ -86,6 +97,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(sites.router)
 app.include_router(analytics.router)
+app.include_router(admin_settings.router)
 app.include_router(links.router)
 app.include_router(gallery.router)
 app.include_router(collect.router)

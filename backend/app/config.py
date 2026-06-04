@@ -65,6 +65,20 @@ class Settings(BaseSettings):
     # Galerie: limită totală per utilizator (25 MB)
     GALLERY_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # --- AI (consultant CRO + gardian GDPR) ---
+    # Cheia API Anthropic. SECRET → stă DOAR în .env, niciodată în DB/UI.
+    # Gol => feature-ul AI e dezactivat „grațios": endpoint-urile răspund clar
+    # „AI indisponibil", iar restul aplicației merge perfect fără cheie.
+    ANTHROPIC_API_KEY: str = ""
+    # Modelul folosit. Configurabil din .env (nu se schimbă la cald, deci nu în DB).
+    # Implicit: cel mai nou Claude disponibil.
+    AI_MODEL: str = "claude-opus-4-8"
+
+    @property
+    def ai_enabled(self) -> bool:
+        """AI e activ doar dacă avem cheie. Folosit ca să dezactivăm grațios."""
+        return bool(self.ANTHROPIC_API_KEY.strip())
+
     @property
     def cors_origins(self) -> list[str]:
         origins = {self.FRONTEND_ORIGIN, self.BASE_URL}

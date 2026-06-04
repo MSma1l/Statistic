@@ -1,6 +1,8 @@
 from app.models.event import Event
+from app.models.funnel import FunnelStep
 from app.models.gallery import GalleryImage
 from app.models.link import LinkVisit, TrackedLink
+from app.models.setting import AppSetting
 from app.models.site import Site
 from app.models.snapshot import PageSnapshot
 from app.models.user import User
@@ -13,4 +15,6 @@ __all__ = [
     "LinkVisit",
     "GalleryImage",
     "PageSnapshot",
+    "FunnelStep",
+    "AppSetting",
 ]

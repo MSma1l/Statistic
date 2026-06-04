@@ -87,6 +87,8 @@ contains "Top-pages conține /acasa" "$(curl -s -b $JAR "$BASE/api/analytics/$SI
 contains "Top-elements conține 'Cumpara'" "$(curl -s -b $JAR "$BASE/api/analytics/$SID/top-elements?days=30")" "Cumpara"
 contains "Breakdown are sectiunea devices" "$(curl -s -b $JAR "$BASE/api/analytics/$SID/breakdown?days=30")" "devices"
 contains "Heatmap /acasa are 2 puncte" "$(curl -s -b $JAR "$BASE/api/analytics/$SID/heatmap?days=30&path=/acasa")" '"count":2'
+contains "Pixel overview agregat are top_sites" "$(curl -s -b $JAR "$BASE/api/analytics/overview?days=30")" 'top_sites'
+contains "Pixel overview agregat are top_pages" "$(curl -s -b $JAR "$BASE/api/analytics/overview?days=30")" 'top_pages'
 
 # ---------------------------------------------------------------
 echo "${B}[5] Linkuri & QR${N}"
@@ -144,6 +146,7 @@ check "QR PNG cu logo -> 200" 200 "$(sc -b $JAR $BASE/api/links/$LID2/qr.png)"
 contains "QR SVG cu logo conține embed base64" "$(curl -s -b $JAR $BASE/api/links/$LID2/qr.svg)" "data:image/png;base64"
 OV=$(curl -s -b $JAR "$BASE/api/links/overview?days=30")
 contains "Overview are top_links" "$OV" "top_links"
+contains "Overview are top_qr (separat de linkuri)" "$OV" "top_qr"
 contains "Overview are by_location (unde s-au deschis)" "$OV" "by_location"
 # curățăm linkul + imaginea
 curl -s -b $JAR -X DELETE $BASE/api/links/$LID2 >/dev/null
