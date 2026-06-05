@@ -43,9 +43,20 @@ _XSS_PATTERNS = [
 
 _COMPILED = [re.compile(p) for p in (_SQLI_PATTERNS + _XSS_PATTERNS)]
 
-# Rute publice de ingestie unde conținutul (ex. textul unui buton) poate
-# conține caractere care altfel ar fi blocate; sunt sanitizate la stocare.
-_RELAXED_PREFIXES = ("/px/collect",)
+# Rute unde corpul conține LEGITIM cod/markup care altfel ar fi blocat:
+#  - /px/collect: ingestie pixel (ex. textul unui buton), sanitizat la stocare;
+#  - /api/landings: sursa landing-urilor găzduite (HTML/CSS/JS scris de owner) —
+#    e conținutul propriu al userului autentificat (require_cap), nu input public.
+# SQLi rămâne acoperit oricum de ORM-ul parametrizat.
+_RELAXED_PREFIXES = ("/px/collect", "/api/landings")
+
+# Prefixul paginilor găzduite servite public. Lor le dăm un CSP PERMISIV (pot folosi
+# fonturi/imagini/scripturi externe), nu pe cel strict al dashboard-ului.
+_LANDING_SERVE_PREFIX = "/lp"
+_LANDING_SERVE_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'",
+}
 
 
 def is_malicious(value: str) -> bool:
@@ -131,7 +142,13 @@ class SecurityGuardMiddleware:
         async def wrapped_send(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
-                for key, value in _SECURITY_HEADERS.items():
+                # Paginile găzduite primesc CSP permisiv; restul, headerele stricte.
+                chosen = (
+                    _LANDING_SERVE_HEADERS
+                    if path.startswith(_LANDING_SERVE_PREFIX)
+                    else _SECURITY_HEADERS
+                )
+                for key, value in chosen.items():
                     headers[key] = value
             await send(message)
 

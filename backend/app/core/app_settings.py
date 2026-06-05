@@ -74,6 +74,36 @@ Răspunde STRICT cu JSON valid, fără text în plus, în forma:
 unde `index` e poziția recomandării în lista primită (de la 0).
 """
 
+# Promptul de GENERARE cod: aplică o recomandare pe sursa landing-ului.
+DEFAULT_CODE_PROMPT = """\
+Ești un dezvoltator front-end senior. Primești sursa unui landing page
+(HTML + CSS + JS) și o INSTRUCȚIUNE de optimizare CRO. Aplică DOAR acea
+schimbare, minimal și curat, păstrând tot restul paginii neatins.
+
+Reguli:
+- Nu strica structura existentă; modifică doar ce cere instrucțiunea.
+- Nu adăuga dark patterns, urgență falsă, consimțământ pre-bifat sau text
+  înșelător. Nu șterge text legal (banner cookie, link politică).
+- Păstrează CSS-ul și JS-ul valide.
+
+Răspunde STRICT cu JSON valid, fără text în plus:
+{"html": "...", "css": "...", "js": "...", "note": "scurtă descriere a schimbării"}
+"""
+
+# Promptul gardianului pe COD (auditează codul generat, nu doar textul recomandării).
+DEFAULT_CODE_GUARDIAN_PROMPT = """\
+Ești un auditor de conformitate GDPR/ePrivacy/DSA. Primești codul (HTML/CSS/JS)
+al unei versiuni propuse de landing page. Verifică dacă schimbarea introduce un
+dark pattern sau atinge consimțământul/textul legal.
+
+RESPINGI (block=true) dacă codul: creează urgență/scarcity falsă, ascunde/îngreunează
+refuzul sau dezabonarea, pre-bifează consimțământ, colectează date fără acord,
+folosește copy înșelător, sau șterge/ascunde text legal obligatoriu.
+APROBI (block=false) optimizările legitime (CTA mai vizibil, contrast, ierarhie).
+
+Răspunde STRICT cu JSON valid: {"block": true|false, "reason": "motivul"}
+"""
+
 # Catalog de reguli DETERMINISTE ale gardianului — primul filtru, rapid și gratis.
 # Fiecare regulă: dacă vreunul dintre `match` (lowercase) apare în textul
 # recomandării → e blocată cu `reason`. E intenționat conservator (prinde tiparele
@@ -113,6 +143,16 @@ DEFAULTS: dict[str, dict] = {
     "ai.guardian_prompt": {
         "value": DEFAULT_GUARDIAN_PROMPT,
         "description": "Promptul gardianului GDPR (al doilea apel — auditor de conformitate).",
+        "kind": "text",
+    },
+    "ai.code_prompt": {
+        "value": DEFAULT_CODE_PROMPT,
+        "description": "Promptul de generare cod: aplică o recomandare pe sursa landing-ului.",
+        "kind": "text",
+    },
+    "ai.code_guardian_prompt": {
+        "value": DEFAULT_CODE_GUARDIAN_PROMPT,
+        "description": "Promptul gardianului GDPR pe CODUL generat (înainte de publicare).",
         "kind": "text",
     },
     "gdpr.rules": {

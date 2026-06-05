@@ -12,6 +12,7 @@ from app.api import (
     auth,
     collect,
     gallery,
+    landings,
     links,
     optimization,
     redirect,
@@ -25,6 +26,8 @@ from app.models import (  # noqa: F401
     Event,
     FunnelStep,
     GalleryImage,
+    LandingPage,
+    LandingVersion,
     LinkVisit,
     PageSnapshot,
     Site,
@@ -99,6 +102,8 @@ app.include_router(auth.router)
 app.include_router(sites.router)
 app.include_router(analytics.router)
 app.include_router(optimization.router)
+app.include_router(landings.router)
+app.include_router(landings.public_router)
 app.include_router(admin_settings.router)
 app.include_router(links.router)
 app.include_router(gallery.router)

@@ -29,6 +29,7 @@ import {
 } from "recharts";
 import HeatmapOverlay from "../components/HeatmapOverlay";
 import JourneyModal from "../components/JourneyModal";
+import LandingsTab from "../components/landing/LandingsTab";
 import OptimizationSection from "../components/optimization/OptimizationSection";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
 import { api, formatDuration, type Site } from "../lib/api";
@@ -46,7 +47,7 @@ export default function SiteDetail() {
   const qc = useQueryClient();
   const [days, setDays] = useState(30);
   // Tab activ: dashboard-urile clasice („Analize") vs noul strat „Optimizare".
-  const [tab, setTab] = useState<"analytics" | "optimize">("analytics");
+  const [tab, setTab] = useState<"analytics" | "optimize" | "landings">("analytics");
   const [heatPath, setHeatPath] = useState<string>("");
   const [scrollPath, setScrollPath] = useState<string>("");
   const [openSession, setOpenSession] = useState<string | null>(null);
@@ -262,6 +263,7 @@ export default function SiteDetail() {
         {([
           { key: "analytics", label: "Analize" },
           { key: "optimize", label: "Optimizare" },
+          { key: "landings", label: "Landinguri" },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -577,6 +579,9 @@ export default function SiteDetail() {
           <OptimizationSection siteId={siteId} days={days} paths={pages.data ?? []} />
         </div>
       )}
+
+      {/* Landinguri găzduite + buclă de aplicare AI */}
+      {tab === "landings" && <LandingsTab siteId={siteId} />}
 
       {openSession && (
         <JourneyModal

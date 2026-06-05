@@ -158,6 +158,45 @@ export interface AdminSettings {
   settings: AppSettingItem[];
 }
 
+// ---- Landinguri găzduite + buclă de aplicare AI (Faza 2) -------------------
+
+export interface Landing {
+  id: number;
+  path: string;
+  label: string;
+  published_version_id: number | null;
+}
+
+export interface LandingVersionMeta {
+  id: number;
+  version_no: number;
+  source: "human" | "ai";
+  note: string;
+  status: "draft" | "published" | "archived";
+  blocked: boolean;
+  blocked_reason: string;
+  created_at: string;
+}
+
+export interface LandingDetail {
+  landing: Landing;
+  published_version_id: number | null;
+  public_url: string;
+  versions: LandingVersionMeta[];
+}
+
+export interface VersionContent extends LandingVersionMeta {
+  html: string;
+  css: string;
+  js: string;
+}
+
+/** Rezultatul generării AI: fie indisponibil/eroare, fie o versiune draft creată. */
+export type GenerateResult =
+  | { available: false; message: string }
+  | { available: true; error: true; message: string }
+  | ({ available: true } & VersionContent);
+
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;

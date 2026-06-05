@@ -1,6 +1,7 @@
 from app.models.event import Event
 from app.models.funnel import FunnelStep
 from app.models.gallery import GalleryImage
+from app.models.landing import LandingPage, LandingVersion
 from app.models.link import LinkVisit, TrackedLink
 from app.models.setting import AppSetting
 from app.models.site import Site
@@ -17,4 +18,6 @@ __all__ = [
     "PageSnapshot",
     "FunnelStep",
     "AppSetting",
+    "LandingPage",
+    "LandingVersion",
 ]
