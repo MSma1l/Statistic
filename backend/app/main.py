@@ -14,6 +14,7 @@ from app.api import (
     collect,
     experiments,
     gallery,
+    landing_generator,
     landings,
     links,
     live_patches,
@@ -128,6 +129,7 @@ app.include_router(analytics.router)
 app.include_router(optimization.router)
 app.include_router(landings.router)
 app.include_router(landings.public_router)
+app.include_router(landing_generator.router)
 app.include_router(live_patches.router)
 app.include_router(live_patches.public_router)
 app.include_router(experiments.router)

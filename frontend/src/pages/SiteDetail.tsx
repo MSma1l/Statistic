@@ -29,6 +29,7 @@ import {
 } from "recharts";
 import HeatmapOverlay from "../components/HeatmapOverlay";
 import JourneyModal from "../components/JourneyModal";
+import LandingGenerator from "../components/landing/LandingGenerator";
 import LandingsTab from "../components/landing/LandingsTab";
 import Experiments from "../components/optimization/Experiments";
 import LivePatches from "../components/optimization/LivePatches";
@@ -51,7 +52,13 @@ export default function SiteDetail() {
   const [days, setDays] = useState(30);
   // Tab activ: dashboard-urile clasice („Analize") vs noul strat „Optimizare".
   const [tab, setTab] = useState<
-    "analytics" | "optimize" | "landings" | "live" | "experiments" | "privacy"
+    | "analytics"
+    | "optimize"
+    | "landings"
+    | "generator"
+    | "live"
+    | "experiments"
+    | "privacy"
   >("analytics");
   const [heatPath, setHeatPath] = useState<string>("");
   const [scrollPath, setScrollPath] = useState<string>("");
@@ -269,6 +276,7 @@ export default function SiteDetail() {
           { key: "analytics", label: "Analize" },
           { key: "optimize", label: "Optimizare" },
           { key: "landings", label: "Landinguri" },
+          { key: "generator", label: "Generator" },
           { key: "live", label: "Aplicare live" },
           { key: "experiments", label: "Experimente A/B" },
           { key: "privacy", label: "Confidențialitate" },
@@ -590,6 +598,9 @@ export default function SiteDetail() {
 
       {/* Landinguri găzduite + buclă de aplicare AI */}
       {tab === "landings" && <LandingsTab siteId={siteId} />}
+
+      {/* Generator de landing-uri de vânzări cu AI (pixel + linkuri auto-conectate) */}
+      {tab === "generator" && <LandingGenerator siteId={siteId} />}
 
       {/* Faza 3 — patch-uri DOM live aplicate de t.js pe pagina reală */}
       {tab === "live" && (
