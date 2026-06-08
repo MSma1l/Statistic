@@ -3,6 +3,7 @@ from app.models.funnel import FunnelStep
 from app.models.gallery import GalleryImage
 from app.models.landing import LandingPage, LandingVersion
 from app.models.link import LinkVisit, TrackedLink
+from app.models.live_patch import LivePatch
 from app.models.setting import AppSetting
 from app.models.site import Site
 from app.models.snapshot import PageSnapshot
@@ -20,4 +21,5 @@ __all__ = [
     "AppSetting",
     "LandingPage",
     "LandingVersion",
+    "LivePatch",
 ]

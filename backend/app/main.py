@@ -14,6 +14,7 @@ from app.api import (
     gallery,
     landings,
     links,
+    live_patches,
     optimization,
     redirect,
     sites,
@@ -29,6 +30,7 @@ from app.models import (  # noqa: F401
     LandingPage,
     LandingVersion,
     LinkVisit,
+    LivePatch,
     PageSnapshot,
     Site,
     TrackedLink,
@@ -104,6 +106,8 @@ app.include_router(analytics.router)
 app.include_router(optimization.router)
 app.include_router(landings.router)
 app.include_router(landings.public_router)
+app.include_router(live_patches.router)
+app.include_router(live_patches.public_router)
 app.include_router(admin_settings.router)
 app.include_router(links.router)
 app.include_router(gallery.router)

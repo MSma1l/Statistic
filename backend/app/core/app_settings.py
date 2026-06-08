@@ -104,6 +104,42 @@ APROBI (block=false) optimizările legitime (CTA mai vizibil, contrast, ierarhie
 Răspunde STRICT cu JSON valid: {"block": true|false, "reason": "motivul"}
 """
 
+# Promptul de GENERARE patch live: recomandare CRO -> o operație DOM concretă.
+DEFAULT_PATCH_PROMPT = """\
+Ești inginer CRO. Primești elementele reale ale unei pagini (selector CSS + textul
+observat la click) și o RECOMANDARE de optimizare. Transform-o într-UN singur patch
+DOM minimal, aplicabil în browser fără a strica pagina.
+
+Alege un `selector` DINTRE elementele primite (sunt reale, observate în trafic) —
+nu inventa selectori. Alege operația potrivită:
+- "text"  → schimbi textul vizibil al elementului (ex: alt CTA). `prop` rămâne gol.
+- "style" → schimbi O proprietate CSS. `prop` = numele ei (ex: "background-color"),
+  `value` = valoarea (ex: "#16a34a"). Doar optimizări sigure: contrast, mărime, culoare.
+- "attr"  → schimbi un atribut. `prop` = numele (ex: "href"), `value` = valoarea.
+
+INTERZIS: dark patterns, urgență/scarcity falsă, ascunderea refuzului, atingerea
+consimțământului sau a textului legal. Un gardian le va respinge oricum.
+
+Răspunde STRICT cu JSON valid, fără text în plus:
+{"selector": "...", "op": "text|style|attr", "prop": "...", "value": "...",
+ "label": "scurtă descriere a schimbării"}
+"""
+
+# Gardianul GDPR pe PATCH (auditează patch-ul propus înainte să poată trece live).
+DEFAULT_PATCH_GUARDIAN_PROMPT = """\
+Ești auditor de conformitate GDPR/ePrivacy/DSA. Primești UN patch DOM propus
+(selector, operație, proprietate, valoare, etichetă). Decizi dacă e legal/etic
+sau dacă e un dark pattern ori atinge consimțământul/textul legal.
+
+RESPINGI (block=true) dacă patch-ul: creează urgență/scarcity falsă, ascunde sau
+îngreunează refuzul/dezabonarea, pre-bifează consimțământ, redirecționează înșelător
+(ex: `href` spre altă destinație neașteptată), folosește copy manipulativ, sau
+ascunde/șterge text legal obligatoriu.
+APROBI (block=false) optimizările legitime: CTA mai vizibil, contrast, text mai clar.
+
+Răspunde STRICT cu JSON valid: {"block": true|false, "reason": "motivul"}
+"""
+
 # Catalog de reguli DETERMINISTE ale gardianului — primul filtru, rapid și gratis.
 # Fiecare regulă: dacă vreunul dintre `match` (lowercase) apare în textul
 # recomandării → e blocată cu `reason`. E intenționat conservator (prinde tiparele
@@ -153,6 +189,16 @@ DEFAULTS: dict[str, dict] = {
     "ai.code_guardian_prompt": {
         "value": DEFAULT_CODE_GUARDIAN_PROMPT,
         "description": "Promptul gardianului GDPR pe CODUL generat (înainte de publicare).",
+        "kind": "text",
+    },
+    "ai.patch_prompt": {
+        "value": DEFAULT_PATCH_PROMPT,
+        "description": "Promptul de generare patch live: recomandare CRO -> o operație DOM.",
+        "kind": "text",
+    },
+    "ai.patch_guardian_prompt": {
+        "value": DEFAULT_PATCH_GUARDIAN_PROMPT,
+        "description": "Promptul gardianului GDPR pe PATCH-ul live (înainte de publicare).",
         "kind": "text",
     },
     "gdpr.rules": {

@@ -197,6 +197,31 @@ export type GenerateResult =
   | { available: true; error: true; message: string }
   | ({ available: true } & VersionContent);
 
+// ---- Patch-uri DOM live aplicate de t.js (Faza 3) --------------------------
+
+export interface LivePatch {
+  id: number;
+  path: string;
+  label: string;
+  selector: string;
+  op: "text" | "style" | "attr";
+  prop: string;
+  value: string;
+  risk: "low" | "medium" | "high";
+  source: "human" | "ai";
+  status: "draft" | "live" | "paused";
+  auto_apply: boolean;
+  blocked: boolean;
+  blocked_reason: string;
+  created_at: string;
+}
+
+/** Rezultatul generării AI a unui patch: indisponibil/eroare, sau patch-ul creat. */
+export type PatchGenerateResult =
+  | { available: false; message: string }
+  | { available: true; error: true; message: string }
+  | ({ available: true } & LivePatch);
+
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;

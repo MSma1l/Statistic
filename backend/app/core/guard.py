@@ -47,8 +47,10 @@ _COMPILED = [re.compile(p) for p in (_SQLI_PATTERNS + _XSS_PATTERNS)]
 #  - /px/collect: ingestie pixel (ex. textul unui buton), sanitizat la stocare;
 #  - /api/landings: sursa landing-urilor găzduite (HTML/CSS/JS scris de owner) —
 #    e conținutul propriu al userului autentificat (require_cap), nu input public.
+#  - /api/live-patches: valorile patch-urilor DOM (text/CSS/atribut) scrise de owner;
+#    t.js le aplică prin textContent/style/setAttribute (nu innerHTML), deci nu execută.
 # SQLi rămâne acoperit oricum de ORM-ul parametrizat.
-_RELAXED_PREFIXES = ("/px/collect", "/api/landings")
+_RELAXED_PREFIXES = ("/px/collect", "/api/landings", "/api/live-patches")
 
 # Prefixul paginilor găzduite servite public. Lor le dăm un CSP PERMISIV (pot folosi
 # fonturi/imagini/scripturi externe), nu pe cel strict al dashboard-ului.
