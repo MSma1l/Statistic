@@ -20,13 +20,36 @@
   } catch (e) {}
 
   var ENDPOINT;
+  var ORIGIN;
   try {
-    ENDPOINT = new URL(script.src).origin + "/px/collect";
+    ORIGIN = new URL(script.src).origin;
+    ENDPOINT = ORIGIN + "/px/collect";
   } catch (e) {
     return;
   }
 
-  // --- Identitate anonimă (vizitator + sesiune) ---
+  // ===========================================================================
+  //  GDPR — CONSIMȚĂMÂNT (Nivel 1 din viziune)
+  //  Dacă snippetul are data-consent="required", NU pornim nimic (nici măcar nu
+  //  creăm identificatorul vizitatorului) până nu primim consimțământ explicit:
+  //    window.statistic.consent('grant')  → pornește tracking-ul (și-l ține minte);
+  //    window.statistic.consent('deny')   → rămâne oprit.
+  //  Așa respectăm „consimțământ înainte de pornirea t.js / înainte de a seta id".
+  // ===========================================================================
+  var consentRequired =
+    (script.getAttribute("data-consent") || "") === "required";
+  function storedConsent() {
+    try {
+      return localStorage.getItem("_st_consent");
+    } catch (e) {
+      return null;
+    }
+  }
+  // Pornim doar dacă nu e nevoie de consimțământ SAU dacă a fost deja acordat.
+  var consentGranted = !consentRequired || storedConsent() === "1";
+  var started = false;
+
+  // --- Identitate anonimă (vizitator + sesiune) — create DOAR după consimțământ ---
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   }
@@ -55,11 +78,11 @@
     }
   }
 
-  var visitorId = getVisitor();
-  var sessionId = getSession();
+  // Stare la nivel de modul; se completează în `init()` după consimțământ.
+  var visitorId = "";
+  var sessionId = "";
+  var utm = {};
 
-  // --- Atribuire campanie: capturăm UTM-urile din URL-ul de intrare (o dată
-  //     pe încărcare = nivel sesiune, ca în Meta Pixel / Yandex Metrica). ---
   function getUTM() {
     try {
       var p = new URLSearchParams(location.search);
@@ -72,7 +95,6 @@
       return {};
     }
   }
-  var utm = getUTM();
 
   // --- Coadă de evenimente + trimitere în batch ---
   var queue = [];
@@ -86,7 +108,6 @@
       events: queue.splice(0, queue.length),
     };
     var data = JSON.stringify(payload);
-    // Folosim text/plain: request "simplu" (fără preflight CORS) cross-origin.
     try {
       if (navigator.sendBeacon) {
         navigator.sendBeacon(
@@ -96,7 +117,6 @@
         return;
       }
     } catch (e) {}
-    // Fallback fetch
     try {
       fetch(ENDPOINT, {
         method: "POST",
@@ -117,10 +137,9 @@
   }
 
   function track(type, extra) {
+    // Fără consimțământ (când e cerut) NU colectăm nimic — poarta GDPR.
+    if (!consentGranted) return;
     var ev = {
-      // DOAR pathname (fără query): aceeași pagină deschisă cu UTM-uri diferite
-      // se grupează corect în rapoarte (heatmap/scroll/top-pages). UTM-urile sunt
-      // capturate separat. Override-uit prin `extra.path` pentru engagement (SPA).
       type: type,
       path: location.pathname,
       referrer: document.referrer || "",
@@ -155,36 +174,25 @@
 
   // ===========================================================================
   //  ENGAGEMENT (timp ACTIV pe pagină) + scroll MAXIM atins
-  //  Cronometrăm doar cât pagina e vizibilă (tab activ). La plecare/navigare
-  //  trimitem un eveniment `engagement` cu durata și scroll-ul maxim.
   // ===========================================================================
   var currentPath = location.pathname;
-  var activeMs = 0; // ms acumulați cât pagina a fost vizibilă
-  var lastResume = Date.now(); // momentul ultimei „reactivări"
+  var activeMs = 0;
+  var lastResume = Date.now();
   var isVisible = document.visibilityState !== "hidden";
-  var maxScroll = 0; // % maxim de scroll atins pe pagina curentă
+  var maxScroll = 0;
+  var scrollHits = { 25: false, 50: false, 75: false, 100: false };
 
   function accumulate() {
-    // Adaugă timpul scurs de la ultima reactivare, dacă pagina e vizibilă.
     if (!isVisible) return;
     var now = Date.now();
     var delta = now - lastResume;
     lastResume = now;
-    // Plafon: dacă au trecut peste 60s între măsurători, tab-ul a fost probabil
-    // suspendat în fundal (fără visibilitychange, cazuri de mobil) — nu contăm
-    // acel timp ca „activ". Heartbeat-ul de mai jos ține delta-urile mici.
     if (delta > 0 && delta < 60000) activeMs += delta;
   }
 
-  // Heartbeat: măsoară timpul activ în pași mici (5s) cât pagina e vizibilă.
-  // Astfel cititul îndelungat se numără corect, dar pauzele lungi (fundal) nu.
-  setInterval(accumulate, 5000);
-
   function sendEngagement() {
     accumulate();
-    if (activeMs < 250) return; // sub prag de zgomot; rămâne acumulat pt. data viitoare
-    // Trimitem DELTA (timpul de la ultima trimitere), apoi resetăm. Backend-ul
-    // adună deltele per (sesiune, pagină) => fără dublă numărare la hide/show.
+    if (activeMs < 250) return;
     track("engagement", {
       path: currentPath,
       duration_ms: Math.min(activeMs, 86400000),
@@ -194,7 +202,6 @@
   }
 
   function resetPage() {
-    // La trecerea pe o pagină nouă (SPA): zero contoarele.
     activeMs = 0;
     lastResume = Date.now();
     maxScroll = 0;
@@ -202,7 +209,6 @@
     currentPath = location.pathname;
   }
 
-  // --- Pageview ---
   function pageview() {
     track("pageview", {
       utm_source: utm.utm_source,
@@ -210,15 +216,10 @@
       utm_campaign: utm.utm_campaign,
     });
   }
-  pageview();
 
   // ===========================================================================
-  //  FAZA 3 — Aplicare LIVE a patch-urilor aprobate (modelul „C" din viziune)
-  //  Cerem serverului patch-urile DOM puse LIVE pentru ACEASTĂ pagină și le
-  //  aplicăm în browser. Serverul servește DOAR patch-uri aprobate ȘI trecute de
-  //  gardianul GDPR (veto dur), deci `t.js` are încredere în ce primește.
-  //  Aplicăm prin textContent/style/setAttribute — NICIODATĂ innerHTML — ca o
-  //  valoare de patch să nu poată injecta și executa cod pe site-ul clientului.
+  //  FAZA 3 + bandit — aplicare LIVE a patch-urilor / brațelor (model „C")
+  //  Aplicăm prin textContent/style/setAttribute — NICIODATĂ innerHTML.
   // ===========================================================================
   function applyPatch(p) {
     if (!p || !p.selector) return;
@@ -226,33 +227,23 @@
       var els = document.querySelectorAll(p.selector);
       for (var i = 0; i < els.length; i++) {
         var el = els[i];
-        if (p.op === "text") {
-          el.textContent = p.value;
-        } else if (p.op === "style" && p.prop) {
-          el.style.setProperty(p.prop, p.value);
-        } else if (p.op === "attr" && p.prop) {
-          el.setAttribute(p.prop, p.value);
-        }
+        if (p.op === "text") el.textContent = p.value;
+        else if (p.op === "style" && p.prop) el.style.setProperty(p.prop, p.value);
+        else if (p.op === "attr" && p.prop) el.setAttribute(p.prop, p.value);
       }
     } catch (e) {}
   }
 
   function applyLivePatches() {
-    var url;
     try {
-      url =
-        new URL(script.src).origin +
-        "/px/patches?site=" +
-        encodeURIComponent(SITE) +
-        "&path=" +
-        encodeURIComponent(location.pathname);
-    } catch (e) {
-      return;
-    }
-    // GET „simplu" (fără headere custom) => fără preflight CORS; răspunsul are
-    // Access-Control-Allow-Origin: * ca să-l putem citi de pe domeniul clientului.
-    try {
-      fetch(url, { method: "GET", mode: "cors", credentials: "omit" })
+      fetch(
+        ORIGIN +
+          "/px/patches?site=" +
+          encodeURIComponent(SITE) +
+          "&path=" +
+          encodeURIComponent(location.pathname),
+        { method: "GET", mode: "cors", credentials: "omit" }
+      )
         .then(function (r) {
           return r.ok ? r.json() : null;
         })
@@ -263,25 +254,18 @@
     } catch (e) {}
   }
 
-  // --- Experiment A/B cu bandit (viziune §6): cerem BRAȚUL vizitatorului ---
-  // Serverul (Thompson sampling) alege ce variantă vede acest vizitator și o ține
-  // sticky prin visitor_id. Aplicăm patch-ul brațului la fel ca un patch live.
   function applyExperiment() {
-    var url;
     try {
-      url =
-        new URL(script.src).origin +
-        "/px/experiment?site=" +
-        encodeURIComponent(SITE) +
-        "&path=" +
-        encodeURIComponent(location.pathname) +
-        "&vid=" +
-        encodeURIComponent(visitorId);
-    } catch (e) {
-      return;
-    }
-    try {
-      fetch(url, { method: "GET", mode: "cors", credentials: "omit" })
+      fetch(
+        ORIGIN +
+          "/px/experiment?site=" +
+          encodeURIComponent(SITE) +
+          "&path=" +
+          encodeURIComponent(location.pathname) +
+          "&vid=" +
+          encodeURIComponent(visitorId),
+        { method: "GET", mode: "cors", credentials: "omit" }
+      )
         .then(function (r) {
           return r.ok ? r.json() : null;
         })
@@ -297,122 +281,166 @@
     applyExperiment();
   }
 
-  // DOM-ul poate să nu fie încă parsat (scriptul e în <head>, async): așteptăm
-  // DOMContentLoaded doar dacă e nevoie, altfel aplicăm imediat (mai puțin flicker).
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", applyAll);
-  } else {
-    applyAll();
-  }
-
   // SPA: la schimbarea de istoric închidem engagement-ul paginii vechi, apoi
-  // resetăm și înregistrăm noul pageview — DOAR dacă s-a schimbat efectiv
-  // pagina (pathname). Un simplu salt la o ancoră internă (#pricing) sau o
-  // schimbare de query NU e o pagină nouă, deci nu o dublăm.
+  // resetăm, înregistrăm noul pageview și recerem patch-urile/brațul.
   function onSpaNavigate() {
     if (location.pathname === currentPath) return;
     sendEngagement();
     resetPage();
     pageview();
-    // Pagina nouă (SPA) poate avea propriile patch-uri live + experiment — recerem.
     applyAll();
   }
-  var _push = history.pushState;
-  history.pushState = function () {
-    _push.apply(this, arguments);
-    onSpaNavigate();
-  };
-  // Și replaceState: multe routere SPA îl folosesc (ex. redirect/replace),
-  // altfel am pierde pageview-ul noii pagini.
-  var _replace = history.replaceState;
-  history.replaceState = function () {
-    _replace.apply(this, arguments);
-    onSpaNavigate();
-  };
-  window.addEventListener("popstate", onSpaNavigate);
 
-  // --- Click + coordonate pentru heatmap + context (link/buton) ---
-  document.addEventListener(
-    "click",
-    function (e) {
-      var el = e.target;
-      var docW = Math.max(
-        document.documentElement.scrollWidth,
-        window.innerWidth
-      );
-      var docH = Math.max(
-        document.documentElement.scrollHeight,
-        window.innerHeight
-      );
-      var x = (e.pageX / docW) * 100;
-      var y = (e.pageY / docH) * 100;
-      var text = (el.innerText || el.textContent || el.value || "").trim();
-      // Linkul cel mai apropiat (dacă s-a apăsat în interiorul unui <a>).
-      var anchor = el.closest ? el.closest("a") : null;
-      var href = anchor
-        ? anchor.getAttribute("href")
-        : el.tagName === "A"
-        ? el.getAttribute("href")
-        : "";
-      track("click", {
-        element_selector: selectorFor(el),
-        element_text: text.slice(0, 120),
-        x_pct: Math.round(x * 100) / 100,
-        y_pct: Math.round(y * 100) / 100,
-        // Dimensiunile complete ale documentului: necesare ca să suprapunem
-        // heatmap-ul peste pagina reală la proporțiile corecte.
-        doc_w: docW,
-        doc_h: docH,
-        props: { href: (href || "").slice(0, 512), tag: (el.tagName || "").toLowerCase() },
-      });
-    },
-    true
-  );
+  // ===========================================================================
+  //  INIT — pornește efectiv tracking-ul. Apelat doar DUPĂ consimțământ.
+  // ===========================================================================
+  function init() {
+    if (started) return; // o singură pornire
+    started = true;
 
-  // --- Scroll depth (milestone) + scroll maxim (pentru engagement) ---
-  var scrollHits = { 25: false, 50: false, 75: false, 100: false };
-  window.addEventListener(
-    "scroll",
-    function () {
-      var st = window.scrollY || document.documentElement.scrollTop;
-      var h = document.documentElement.scrollHeight - window.innerHeight;
-      if (h <= 0) return;
-      var pct = (st / h) * 100;
-      if (pct > maxScroll) maxScroll = Math.min(100, Math.round(pct));
-      [25, 50, 75, 100].forEach(function (d) {
-        if (!scrollHits[d] && pct >= d) {
-          scrollHits[d] = true;
-          track("scroll", { scroll_depth: d });
-        }
-      });
-    },
-    { passive: true }
-  );
+    visitorId = getVisitor();
+    sessionId = getSession();
+    utm = getUTM();
 
-  // --- Vizibilitate: pauză/reluare cronometru + flush la ascundere ---
-  document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") {
-      accumulate();
-      isVisible = false;
+    pageview();
+    applyAll();
+
+    setInterval(accumulate, 5000);
+
+    var _push = history.pushState;
+    history.pushState = function () {
+      _push.apply(this, arguments);
+      onSpaNavigate();
+    };
+    var _replace = history.replaceState;
+    history.replaceState = function () {
+      _replace.apply(this, arguments);
+      onSpaNavigate();
+    };
+    window.addEventListener("popstate", onSpaNavigate);
+
+    document.addEventListener(
+      "click",
+      function (e) {
+        var el = e.target;
+        var docW = Math.max(
+          document.documentElement.scrollWidth,
+          window.innerWidth
+        );
+        var docH = Math.max(
+          document.documentElement.scrollHeight,
+          window.innerHeight
+        );
+        var x = (e.pageX / docW) * 100;
+        var y = (e.pageY / docH) * 100;
+        var text = (el.innerText || el.textContent || el.value || "").trim();
+        var anchor = el.closest ? el.closest("a") : null;
+        var href = anchor
+          ? anchor.getAttribute("href")
+          : el.tagName === "A"
+          ? el.getAttribute("href")
+          : "";
+        track("click", {
+          element_selector: selectorFor(el),
+          element_text: text.slice(0, 120),
+          x_pct: Math.round(x * 100) / 100,
+          y_pct: Math.round(y * 100) / 100,
+          doc_w: docW,
+          doc_h: docH,
+          props: {
+            href: (href || "").slice(0, 512),
+            tag: (el.tagName || "").toLowerCase(),
+          },
+        });
+      },
+      true
+    );
+
+    window.addEventListener(
+      "scroll",
+      function () {
+        var st = window.scrollY || document.documentElement.scrollTop;
+        var h = document.documentElement.scrollHeight - window.innerHeight;
+        if (h <= 0) return;
+        var pct = (st / h) * 100;
+        if (pct > maxScroll) maxScroll = Math.min(100, Math.round(pct));
+        [25, 50, 75, 100].forEach(function (d) {
+          if (!scrollHits[d] && pct >= d) {
+            scrollHits[d] = true;
+            track("scroll", { scroll_depth: d });
+          }
+        });
+      },
+      { passive: true }
+    );
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") {
+        accumulate();
+        isVisible = false;
+        sendEngagement();
+        flush();
+      } else {
+        isVisible = true;
+        lastResume = Date.now();
+      }
+    });
+
+    window.addEventListener("pagehide", function () {
       sendEngagement();
       flush();
-    } else {
-      isVisible = true;
-      lastResume = Date.now();
-    }
-  });
-
-  // La închiderea/părăsirea paginii: engagement final + trimitere.
-  window.addEventListener("pagehide", function () {
-    sendEngagement();
-    flush();
-  });
-
-  // API public: window.statistic('custom_event', {props})
-  window.statistic = function (name, props) {
-    track("custom", {
-      element_text: String(name).slice(0, 120),
-      props: props || null,
     });
+  }
+
+  // ===========================================================================
+  //  API PUBLIC: window.statistic(...)
+  //   - window.statistic('eveniment', {props})  → event custom
+  //   - window.statistic.consent('grant'|'deny') → consimțământ GDPR
+  //   - window.statistic.forget()                → drept la ștergere (self-service)
+  // ===========================================================================
+  window.statistic = function (name, props) {
+    track("custom", { element_text: String(name).slice(0, 120), props: props || null });
   };
+
+  window.statistic.consent = function (decision) {
+    if (decision === "grant") {
+      try {
+        localStorage.setItem("_st_consent", "1");
+      } catch (e) {}
+      consentGranted = true;
+      init(); // pornește acum (dacă nu pornise deja)
+    } else if (decision === "deny") {
+      try {
+        localStorage.setItem("_st_consent", "0");
+      } catch (e) {}
+      consentGranted = false;
+    }
+  };
+
+  window.statistic.forget = function () {
+    // Șterge datele de pe server (self-service) + curăță identificatorii locali.
+    try {
+      var body = JSON.stringify({ site: SITE, visitor_id: visitorId || "" });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(ORIGIN + "/px/forget", new Blob([body], { type: "text/plain" }));
+      } else {
+        fetch(ORIGIN + "/px/forget", {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: body,
+          keepalive: true,
+          mode: "cors",
+        });
+      }
+    } catch (e) {}
+    try {
+      localStorage.removeItem("_st_vid");
+      localStorage.removeItem("_st_consent");
+      sessionStorage.removeItem("_st_sid");
+    } catch (e) {}
+    consentGranted = false;
+  };
+
+  // Bootstrap: pornim acum doar dacă avem voie. Altfel așteptăm consent('grant').
+  if (consentGranted) init();
 })();

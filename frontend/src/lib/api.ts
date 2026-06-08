@@ -41,6 +41,8 @@ export interface Site {
   name: string;
   domain: string;
   min_engagement_seconds: number;
+  consent_required: boolean;
+  retention_days: number;
   created_at: string;
   snippet?: string;
 }

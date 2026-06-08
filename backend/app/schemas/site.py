@@ -13,6 +13,9 @@ class SiteUpdate(BaseModel):
     domain: str | None = Field(default=None, max_length=255)
     # Prag de timp activ minim (secunde) sub care vizita nu se ia în calcul.
     min_engagement_seconds: int | None = Field(default=None, ge=0, le=600)
+    # GDPR: cere consimțământ înainte de tracking + retenția evenimentelor (zile, 0=la nesfârșit).
+    consent_required: bool | None = None
+    retention_days: int | None = Field(default=None, ge=0, le=3650)
 
 
 class SiteOut(BaseModel):
@@ -23,6 +26,8 @@ class SiteOut(BaseModel):
     name: str
     domain: str
     min_engagement_seconds: int
+    consent_required: bool
+    retention_days: int
     created_at: datetime
 
 

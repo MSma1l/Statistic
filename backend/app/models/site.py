@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -26,6 +26,17 @@ class Site(Base):
     # Configurabil din interfață. Aplicat la interogare => retroactiv.
     min_engagement_seconds: Mapped[int] = mapped_column(
         Integer, nullable=False, default=5, server_default="5"
+    )
+    # --- GDPR platformă (Nivel 1 din viziune) ---
+    # Dacă True, snippetul poartă `data-consent="required"`, iar t.js NU urmărește
+    # nimic până nu primește consimțământ explicit (window.statistic.consent('grant')).
+    consent_required: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # Retenția evenimentelor BRUTE în zile. 0 = păstrează la nesfârșit. Jobul de
+    # retenție șterge evenimentele mai vechi de atât (agregatele deja calculate rămân).
+    retention_days: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
     )
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False

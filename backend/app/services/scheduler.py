@@ -17,12 +17,12 @@ import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.config import settings as cfg
 from app.core.app_settings import get_setting
 from app.database import AsyncSessionLocal
-from app.models import OptimizationRun, Site
+from app.models import Event, OptimizationRun, Site
 from app.services.orchestrator import optimize_site
 
 # Cât de des se TREZEȘTE task-ul ca să verifice dacă a venit momentul rulării.
@@ -88,13 +88,35 @@ async def _maybe_run() -> None:
     await _run_all_sites()
 
 
+async def _retention_pass() -> None:
+    """GDPR retenție (§10 Nivel 1): șterge evenimentele brute mai vechi decât pragul
+    fiecărui site. Rulează MEREU (nu ține de AI) — e o obligație legală, nu o opțiune.
+    Sitele cu `retention_days=0` păstrează la nesfârșit (nu le atingem)."""
+    async with AsyncSessionLocal() as db:
+        rows = (
+            await db.execute(
+                select(Site.id, Site.retention_days).where(Site.retention_days > 0)
+            )
+        ).all()
+        for site_id, days in rows:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=int(days))
+            await db.execute(
+                delete(Event).where(
+                    Event.site_id == site_id, Event.created_at < cutoff
+                )
+            )
+        await db.commit()
+
+
 async def scheduler_loop() -> None:
-    """Bucla de fundal: se trezește periodic și rulează jobul dacă e momentul.
+    """Bucla de fundal: se trezește periodic, aplică retenția și rulează jobul de
+    optimizare dacă e momentul.
 
     Pornită din `lifespan` la startup și anulată la shutdown. Orice eroare e
     înghițită (nu vrem ca o rulare picată să omoare bucla)."""
     while True:
         try:
+            await _retention_pass()
             await _maybe_run()
         except asyncio.CancelledError:
             raise

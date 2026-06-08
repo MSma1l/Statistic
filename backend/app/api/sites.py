@@ -14,10 +14,12 @@ router = APIRouter(
 )
 
 
-def build_snippet(site_key: str) -> str:
+def build_snippet(site_key: str, consent_required: bool = False) -> str:
+    # `data-consent="required"` spune lui t.js să NU urmărească până la consimțământ.
+    consent_attr = ' data-consent="required"' if consent_required else ""
     return (
         f'<script async src="{settings.public_url}/px/t.js" '
-        f'data-site="{site_key}"></script>'
+        f'data-site="{site_key}"{consent_attr}></script>'
     )
 
 
@@ -54,7 +56,7 @@ async def create_site(
     await db.refresh(site)
     return SiteWithSnippet(
         **SiteOut.model_validate(site).model_dump(),
-        snippet=build_snippet(site.site_key),
+        snippet=build_snippet(site.site_key, site.consent_required),
     )
 
 
@@ -67,7 +69,7 @@ async def get_site(
     site = await _get_owned_site(site_id, user, db)
     return SiteWithSnippet(
         **SiteOut.model_validate(site).model_dump(),
-        snippet=build_snippet(site.site_key),
+        snippet=build_snippet(site.site_key, site.consent_required),
     )
 
 
@@ -85,6 +87,10 @@ async def update_site(
         site.domain = clean_text(payload.domain)
     if payload.min_engagement_seconds is not None:
         site.min_engagement_seconds = payload.min_engagement_seconds
+    if payload.consent_required is not None:
+        site.consent_required = payload.consent_required
+    if payload.retention_days is not None:
+        site.retention_days = payload.retention_days
     await db.flush()
     await db.refresh(site)
     return site

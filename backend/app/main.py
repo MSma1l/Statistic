@@ -18,6 +18,7 @@ from app.api import (
     links,
     live_patches,
     optimization,
+    privacy,
     redirect,
     sites,
 )
@@ -67,6 +68,9 @@ _MIGRATIONS = [
     # PERFORMANȚĂ: index aliniat la filtrul folosit de toate rapoartele
     # (site_id + type + created_at). Acoperă summary/timeseries/engagement etc.
     "CREATE INDEX IF NOT EXISTS ix_events_site_type_created ON events (site_id, type, created_at)",
+    # GDPR platformă (Nivel 1): consimțământ per site + retenție evenimente brute.
+    "ALTER TABLE sites ADD COLUMN IF NOT EXISTS consent_required BOOLEAN NOT NULL DEFAULT false",
+    "ALTER TABLE sites ADD COLUMN IF NOT EXISTS retention_days INTEGER NOT NULL DEFAULT 0",
 ]
 
 
@@ -128,6 +132,8 @@ app.include_router(live_patches.router)
 app.include_router(live_patches.public_router)
 app.include_router(experiments.router)
 app.include_router(experiments.public_router)
+app.include_router(privacy.router)
+app.include_router(privacy.public_router)
 app.include_router(admin_settings.router)
 app.include_router(links.router)
 app.include_router(gallery.router)
