@@ -805,3 +805,4 @@ async def delete_snapshot(
             PageSnapshot.site_id == site_id, PageSnapshot.path == path
         )
     )
+

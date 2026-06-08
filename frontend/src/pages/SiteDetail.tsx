@@ -30,6 +30,7 @@ import {
 import HeatmapOverlay from "../components/HeatmapOverlay";
 import JourneyModal from "../components/JourneyModal";
 import LandingsTab from "../components/landing/LandingsTab";
+import LivePatches from "../components/optimization/LivePatches";
 import OptimizationSection from "../components/optimization/OptimizationSection";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
 import { api, formatDuration, type Site } from "../lib/api";
@@ -47,7 +48,9 @@ export default function SiteDetail() {
   const qc = useQueryClient();
   const [days, setDays] = useState(30);
   // Tab activ: dashboard-urile clasice („Analize") vs noul strat „Optimizare".
-  const [tab, setTab] = useState<"analytics" | "optimize" | "landings">("analytics");
+  const [tab, setTab] = useState<"analytics" | "optimize" | "landings" | "live">(
+    "analytics"
+  );
   const [heatPath, setHeatPath] = useState<string>("");
   const [scrollPath, setScrollPath] = useState<string>("");
   const [openSession, setOpenSession] = useState<string | null>(null);
@@ -264,6 +267,7 @@ export default function SiteDetail() {
           { key: "analytics", label: "Analize" },
           { key: "optimize", label: "Optimizare" },
           { key: "landings", label: "Landinguri" },
+          { key: "live", label: "Aplicare live" },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -582,6 +586,18 @@ export default function SiteDetail() {
 
       {/* Landinguri găzduite + buclă de aplicare AI */}
       {tab === "landings" && <LandingsTab siteId={siteId} />}
+
+      {/* Faza 3 — patch-uri DOM live aplicate de t.js pe pagina reală */}
+      {tab === "live" && (
+        <div>
+          <p className="mb-4 text-sm text-slate-500">
+            Aplică schimbări mici (text/culoare/atribut) direct pe pagina reală a
+            site-ului tău, prin pixel — fără să atingi codul. Fiecare patch trece prin
+            poarta risc × gardian GDPR; cele blocate nu pot fi puse live.
+          </p>
+          <LivePatches siteId={siteId} paths={pages.data ?? []} />
+        </div>
+      )}
 
       {openSession && (
         <JourneyModal
