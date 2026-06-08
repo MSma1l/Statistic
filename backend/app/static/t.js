@@ -281,6 +281,65 @@
     applyExperiment();
   }
 
+  // ===========================================================================
+  //  FAZA 3 — Aplicare LIVE a patch-urilor aprobate (modelul „C" din viziune)
+  //  Cerem serverului patch-urile DOM puse LIVE pentru ACEASTĂ pagină și le
+  //  aplicăm în browser. Serverul servește DOAR patch-uri aprobate ȘI trecute de
+  //  gardianul GDPR (veto dur), deci `t.js` are încredere în ce primește.
+  //  Aplicăm prin textContent/style/setAttribute — NICIODATĂ innerHTML — ca o
+  //  valoare de patch să nu poată injecta și executa cod pe site-ul clientului.
+  // ===========================================================================
+  function applyPatch(p) {
+    if (!p || !p.selector) return;
+    try {
+      var els = document.querySelectorAll(p.selector);
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        if (p.op === "text") {
+          el.textContent = p.value;
+        } else if (p.op === "style" && p.prop) {
+          el.style.setProperty(p.prop, p.value);
+        } else if (p.op === "attr" && p.prop) {
+          el.setAttribute(p.prop, p.value);
+        }
+      }
+    } catch (e) {}
+  }
+
+  function applyLivePatches() {
+    var url;
+    try {
+      url =
+        new URL(script.src).origin +
+        "/px/patches?site=" +
+        encodeURIComponent(SITE) +
+        "&path=" +
+        encodeURIComponent(location.pathname);
+    } catch (e) {
+      return;
+    }
+    // GET „simplu" (fără headere custom) => fără preflight CORS; răspunsul are
+    // Access-Control-Allow-Origin: * ca să-l putem citi de pe domeniul clientului.
+    try {
+      fetch(url, { method: "GET", mode: "cors", credentials: "omit" })
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .then(function (data) {
+          if (data && data.patches) data.patches.forEach(applyPatch);
+        })
+        .catch(function () {});
+    } catch (e) {}
+  }
+
+  // DOM-ul poate să nu fie încă parsat (scriptul e în <head>, async): așteptăm
+  // DOMContentLoaded doar dacă e nevoie, altfel aplicăm imediat (mai puțin flicker).
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", applyLivePatches);
+  } else {
+    applyLivePatches();
+  }
+
   // SPA: la schimbarea de istoric închidem engagement-ul paginii vechi, apoi
   // resetăm, înregistrăm noul pageview și recerem patch-urile/brațul.
   function onSpaNavigate() {
@@ -288,6 +347,7 @@
     sendEngagement();
     resetPage();
     pageview();
+    // Pagina nouă (SPA) poate avea propriile patch-uri live + braț de experiment.
     applyAll();
   }
 
