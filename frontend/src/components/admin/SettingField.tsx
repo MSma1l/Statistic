@@ -36,7 +36,16 @@ export default function SettingField({
       </div>
       <p className="mb-3 text-sm text-slate-500">{setting.description}</p>
 
-      {setting.kind === "number" ? (
+      {setting.kind === "bool" ? (
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={!!value}
+            onChange={(e) => setValue(e.target.checked)}
+          />
+          {value ? "Activat" : "Dezactivat"}
+        </label>
+      ) : setting.kind === "number" ? (
         <input
           type="number"
           className="input w-40"

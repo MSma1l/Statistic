@@ -9,6 +9,7 @@ from app.models.gallery import GalleryImage
 from app.models.landing import LandingPage, LandingVersion
 from app.models.link import LinkVisit, TrackedLink
 from app.models.live_patch import LivePatch
+from app.models.optimization_run import OptimizationRun
 from app.models.setting import AppSetting
 from app.models.site import Site
 from app.models.snapshot import PageSnapshot
@@ -30,4 +31,5 @@ __all__ = [
     "Experiment",
     "ExperimentArm",
     "ExperimentAssignment",
+    "OptimizationRun",
 ]

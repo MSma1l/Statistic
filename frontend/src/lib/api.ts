@@ -146,7 +146,7 @@ export interface AiAnalyzeResult {
 export interface AppSettingItem {
   key: string;
   value: any;
-  kind: "text" | "number" | "json";
+  kind: "text" | "number" | "json" | "bool";
   description: string;
   is_default: boolean;
   updated_at: string | null;
@@ -196,6 +196,38 @@ export type GenerateResult =
   | { available: false; message: string }
   | { available: true; error: true; message: string }
   | ({ available: true } & VersionContent);
+
+// ---- Orchestrare multi-agent: optimizează acum (§6.3) ----------------------
+
+/** Un landing în clasamentul de oportunitate (rezultatul unui „agent"). */
+export interface LandingRanking {
+  path: string;
+  conversion_rate: number | null;
+  confidence: "ok" | "low" | null;
+  opportunity_score: number;
+  recommendation_count: number;
+  blocked_count: number;
+  report: AiAnalyzeResult;
+}
+
+/** Rezultatul rulării orchestratorului (POST /optimize-now sau o rulare stocată). */
+export interface OptimizeResult {
+  run_id?: number;
+  created_at?: string;
+  days: number;
+  landing_count: number;
+  ai_available: boolean;
+  ranking: LandingRanking[];
+}
+
+/** Meta unei rulări din istoric (GET /optimization-runs). */
+export interface OptimizationRunMeta {
+  id: number;
+  trigger: "manual" | "scheduled";
+  days: number;
+  landing_count: number;
+  created_at: string;
+}
 
 // ---- Patch-uri DOM live aplicate de t.js (Faza 3) --------------------------
 

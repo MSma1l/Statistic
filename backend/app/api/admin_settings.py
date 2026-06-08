@@ -57,6 +57,9 @@ async def update_setting(
     if kind == "number":
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             raise HTTPException(status_code=400, detail="Această setare cere un număr")
+    elif kind == "bool":
+        if not isinstance(value, bool):
+            raise HTTPException(status_code=400, detail="Această setare cere true/false")
     elif kind == "text":
         if not isinstance(value, str):
             raise HTTPException(status_code=400, detail="Această setare cere text")

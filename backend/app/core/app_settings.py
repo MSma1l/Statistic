@@ -206,6 +206,16 @@ DEFAULTS: dict[str, dict] = {
         "description": "Reguli deterministe (primul filtru). Listă de {match: [cuvinte], reason}.",
         "kind": "json",
     },
+    "optimizer.weekly_enabled": {
+        "value": False,
+        "description": "Pornește jobul automat de optimizare (un agent AI per landing) la interval fix. OFF implicit ca să nu consume tokeni neașteptat.",
+        "kind": "bool",
+    },
+    "optimizer.interval_hours": {
+        "value": 168,
+        "description": "Intervalul (ore) între rulările automate de optimizare. 168 = săptămânal.",
+        "kind": "number",
+    },
     "analytics.min_sessions": {
         "value": DEFAULT_MIN_SESSIONS,
         "description": "Sesiuni minime per grup ca să avem încredere (altfel confidence=low).",

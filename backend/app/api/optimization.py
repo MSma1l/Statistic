@@ -10,6 +10,8 @@ Folosește același prefix `/api/analytics` și aceeași gardă `require_cap("si
 ca router-ul de analytics, ca să fie o continuare firească a aceleiași zone.
 """
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,11 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, require_cap
 from app.core.sanitize import clean_text
 from app.database import get_db
-from app.models import FunnelStep, User
+from app.models import FunnelStep, OptimizationRun, User
 from app.schemas.funnel import AiAnalyzeIn, FunnelStepIn, FunnelStepOut
 from app.services.aggregates import aggregates_for_path
 from app.services.ai_advisor import analyze_landing
 from app.services.funnel import funnel_compare
+from app.services.orchestrator import optimize_site
 from app.services.scope import owned_site
 
 router = APIRouter(
@@ -134,3 +137,86 @@ async def ai_analyze(
             **aggregates,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+#  Orchestrare multi-agent: „optimizează acum" (un agent per landing) + istoric
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{site_id}/optimize-now")
+async def optimize_now(
+    site_id: int,
+    days: int = Query(30, ge=1, le=365),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rulează orchestratorul (agenți AI în paralel) și STOCHEAZĂ rezultatul.
+
+    E declanșatorul MANUAL al cadenței din viziune (același cod rulează și jobul
+    săptămânal). Răspunsul conține clasamentul landingurilor după oportunitate.
+    """
+    site = await owned_site(site_id, user, db)
+    result = await optimize_site(site, days, db)
+    run = OptimizationRun(
+        site_id=site_id,
+        trigger="manual",
+        days=days,
+        landing_count=result["landing_count"],
+        payload=json.dumps(result, ensure_ascii=False),
+    )
+    db.add(run)
+    await db.flush()
+    await db.refresh(run, ["created_at"])
+    return {"run_id": run.id, "created_at": run.created_at, **result}
+
+
+@router.get("/{site_id}/optimization-runs")
+async def list_optimization_runs(
+    site_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Istoricul rulărilor (meta, fără payload — îl ceri separat pe cel dorit)."""
+    await owned_site(site_id, user, db)
+    rows = await db.execute(
+        select(OptimizationRun)
+        .where(OptimizationRun.site_id == site_id)
+        .order_by(OptimizationRun.created_at.desc())
+        .limit(20)
+    )
+    return [
+        {
+            "id": r.id,
+            "trigger": r.trigger,
+            "days": r.days,
+            "landing_count": r.landing_count,
+            "created_at": r.created_at,
+        }
+        for r in rows.scalars().all()
+    ]
+
+
+@router.get("/{site_id}/optimization-runs/{run_id}")
+async def get_optimization_run(
+    site_id: int,
+    run_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Raportul complet (clasament + recomandări) al unei rulări stocate."""
+    await owned_site(site_id, user, db)
+    run = await db.get(OptimizationRun, run_id)
+    if not run or run.site_id != site_id:
+        raise HTTPException(status_code=404, detail="Rulare inexistentă")
+    try:
+        payload = json.loads(run.payload)
+    except (TypeError, ValueError):
+        payload = {}
+    return {
+        "id": run.id,
+        "trigger": run.trigger,
+        "days": run.days,
+        "created_at": run.created_at,
+        **payload,
+    }

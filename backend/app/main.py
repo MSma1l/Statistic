@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -35,12 +36,14 @@ from app.models import (  # noqa: F401
     LandingVersion,
     LinkVisit,
     LivePatch,
+    OptimizationRun,
     PageSnapshot,
     Site,
     TrackedLink,
     User,
 )
 from app.seed import seed_admin
+from app.services.scheduler import scheduler_loop
 
 # Migrări idempotente pentru coloane adăugate ulterior (fără a pierde date).
 _MIGRATIONS = [
@@ -77,7 +80,18 @@ async def lifespan(app: FastAPI):
         for stmt in _MIGRATIONS:
             await conn.execute(text(stmt))
     await seed_admin()
-    yield
+
+    # Jobul programat de optimizare (un agent AI per landing). Rulează doar dacă
+    # adminul l-a pornit din setări; altfel bucla doarme inofensiv. Vezi services/scheduler.py.
+    scheduler_task = asyncio.create_task(scheduler_loop())
+    try:
+        yield
+    finally:
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(

@@ -1,6 +1,7 @@
 import AiRecommendations from "./AiRecommendations";
 import FunnelCompareTable from "./FunnelCompareTable";
 import FunnelEditor from "./FunnelEditor";
+import OptimizeNow from "./OptimizeNow";
 
 /**
  * Secțiunea „Optimizare" din pagina unui site. Doar orchestrează cele trei carduri
@@ -18,6 +19,7 @@ export default function OptimizationSection({
 }) {
   return (
     <div className="space-y-6">
+      <OptimizeNow siteId={siteId} days={days} />
       <FunnelEditor siteId={siteId} />
       <FunnelCompareTable siteId={siteId} days={days} />
       <AiRecommendations siteId={siteId} days={days} paths={paths} />
