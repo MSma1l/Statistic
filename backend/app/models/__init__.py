@@ -1,4 +1,9 @@
 from app.models.event import Event
+from app.models.experiment import (
+    Experiment,
+    ExperimentArm,
+    ExperimentAssignment,
+)
 from app.models.funnel import FunnelStep
 from app.models.gallery import GalleryImage
 from app.models.landing import LandingPage, LandingVersion
@@ -22,4 +27,7 @@ __all__ = [
     "LandingPage",
     "LandingVersion",
     "LivePatch",
+    "Experiment",
+    "ExperimentArm",
+    "ExperimentAssignment",
 ]

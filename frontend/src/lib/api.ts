@@ -222,6 +222,53 @@ export type PatchGenerateResult =
   | { available: true; error: true; message: string }
   | ({ available: true } & LivePatch);
 
+// ---- Experimente A/B cu alocare bandit (viziune §6) ------------------------
+
+export interface ExperimentArmDef {
+  id: number;
+  name: string;
+  is_control: boolean;
+  selector: string;
+  op: "text" | "style" | "attr";
+  prop: string;
+  value: string;
+}
+
+export interface Experiment {
+  id: number;
+  path: string;
+  name: string;
+  status: "running" | "stopped";
+  created_at: string;
+  arms: ExperimentArmDef[];
+}
+
+/** Un braț în tabloul de statistici (GET /stats). */
+export interface ArmStat {
+  arm_id: number;
+  name: string;
+  is_control: boolean;
+  patch: { selector: string; op: string; prop: string; value: string } | null;
+  trials: number;
+  conversions: number;
+  conversion_rate: number;
+  allocation_pct: number;
+  enough_data: boolean;
+  confidence: "ok" | "low";
+  is_champion: boolean;
+}
+
+export interface ExperimentStats {
+  id: number;
+  path: string;
+  name: string;
+  status: "running" | "stopped";
+  days: number;
+  thresholds: { min_trials: number; min_conversions: number };
+  arms: ArmStat[];
+  champion_arm_id: number | null;
+}
+
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;

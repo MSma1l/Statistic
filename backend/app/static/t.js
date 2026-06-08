@@ -263,12 +263,46 @@
     } catch (e) {}
   }
 
+  // --- Experiment A/B cu bandit (viziune §6): cerem BRAȚUL vizitatorului ---
+  // Serverul (Thompson sampling) alege ce variantă vede acest vizitator și o ține
+  // sticky prin visitor_id. Aplicăm patch-ul brațului la fel ca un patch live.
+  function applyExperiment() {
+    var url;
+    try {
+      url =
+        new URL(script.src).origin +
+        "/px/experiment?site=" +
+        encodeURIComponent(SITE) +
+        "&path=" +
+        encodeURIComponent(location.pathname) +
+        "&vid=" +
+        encodeURIComponent(visitorId);
+    } catch (e) {
+      return;
+    }
+    try {
+      fetch(url, { method: "GET", mode: "cors", credentials: "omit" })
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .then(function (data) {
+          if (data && data.arm) applyPatch(data.arm);
+        })
+        .catch(function () {});
+    } catch (e) {}
+  }
+
+  function applyAll() {
+    applyLivePatches();
+    applyExperiment();
+  }
+
   // DOM-ul poate să nu fie încă parsat (scriptul e în <head>, async): așteptăm
   // DOMContentLoaded doar dacă e nevoie, altfel aplicăm imediat (mai puțin flicker).
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", applyLivePatches);
+    document.addEventListener("DOMContentLoaded", applyAll);
   } else {
-    applyLivePatches();
+    applyAll();
   }
 
   // SPA: la schimbarea de istoric închidem engagement-ul paginii vechi, apoi
@@ -280,8 +314,8 @@
     sendEngagement();
     resetPage();
     pageview();
-    // Pagina nouă (SPA) poate avea propriile patch-uri live — le cerem din nou.
-    applyLivePatches();
+    // Pagina nouă (SPA) poate avea propriile patch-uri live + experiment — recerem.
+    applyAll();
   }
   var _push = history.pushState;
   history.pushState = function () {

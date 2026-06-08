@@ -30,6 +30,7 @@ import {
 import HeatmapOverlay from "../components/HeatmapOverlay";
 import JourneyModal from "../components/JourneyModal";
 import LandingsTab from "../components/landing/LandingsTab";
+import Experiments from "../components/optimization/Experiments";
 import LivePatches from "../components/optimization/LivePatches";
 import OptimizationSection from "../components/optimization/OptimizationSection";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
@@ -48,9 +49,9 @@ export default function SiteDetail() {
   const qc = useQueryClient();
   const [days, setDays] = useState(30);
   // Tab activ: dashboard-urile clasice („Analize") vs noul strat „Optimizare".
-  const [tab, setTab] = useState<"analytics" | "optimize" | "landings" | "live">(
-    "analytics"
-  );
+  const [tab, setTab] = useState<
+    "analytics" | "optimize" | "landings" | "live" | "experiments"
+  >("analytics");
   const [heatPath, setHeatPath] = useState<string>("");
   const [scrollPath, setScrollPath] = useState<string>("");
   const [openSession, setOpenSession] = useState<string | null>(null);
@@ -268,6 +269,7 @@ export default function SiteDetail() {
           { key: "optimize", label: "Optimizare" },
           { key: "landings", label: "Landinguri" },
           { key: "live", label: "Aplicare live" },
+          { key: "experiments", label: "Experimente A/B" },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -596,6 +598,18 @@ export default function SiteDetail() {
             poarta risc × gardian GDPR; cele blocate nu pot fi puse live.
           </p>
           <LivePatches siteId={siteId} paths={pages.data ?? []} />
+        </div>
+      )}
+
+      {/* Experimente A/B cu alocare bandit (champion-challenger) */}
+      {tab === "experiments" && (
+        <div>
+          <p className="mb-4 text-sm text-slate-500">
+            Testează variante ale unei pagini cu un multi-armed bandit: traficul curge
+            dinamic spre varianta care convertește (campionul), explorând în continuare
+            restul. Atribuirea conversiei e pe vizitator, cu prag „destule date".
+          </p>
+          <Experiments siteId={siteId} paths={pages.data ?? []} />
         </div>
       )}
 

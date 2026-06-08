@@ -50,7 +50,12 @@ _COMPILED = [re.compile(p) for p in (_SQLI_PATTERNS + _XSS_PATTERNS)]
 #  - /api/live-patches: valorile patch-urilor DOM (text/CSS/atribut) scrise de owner;
 #    t.js le aplică prin textContent/style/setAttribute (nu innerHTML), deci nu execută.
 # SQLi rămâne acoperit oricum de ORM-ul parametrizat.
-_RELAXED_PREFIXES = ("/px/collect", "/api/landings", "/api/live-patches")
+_RELAXED_PREFIXES = (
+    "/px/collect",
+    "/api/landings",
+    "/api/live-patches",
+    "/api/experiments",  # brațele conțin valori de patch (text/CSS) scrise de owner
+)
 
 # Prefixul paginilor găzduite servite public. Lor le dăm un CSP PERMISIV (pot folosi
 # fonturi/imagini/scripturi externe), nu pe cel strict al dashboard-ului.

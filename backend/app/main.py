@@ -11,6 +11,7 @@ from app.api import (
     analytics,
     auth,
     collect,
+    experiments,
     gallery,
     landings,
     links,
@@ -25,6 +26,9 @@ from app.database import Base, engine
 from app.models import (  # noqa: F401
     AppSetting,
     Event,
+    Experiment,
+    ExperimentArm,
+    ExperimentAssignment,
     FunnelStep,
     GalleryImage,
     LandingPage,
@@ -108,6 +112,8 @@ app.include_router(landings.router)
 app.include_router(landings.public_router)
 app.include_router(live_patches.router)
 app.include_router(live_patches.public_router)
+app.include_router(experiments.router)
+app.include_router(experiments.public_router)
 app.include_router(admin_settings.router)
 app.include_router(links.router)
 app.include_router(gallery.router)
