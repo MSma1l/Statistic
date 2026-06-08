@@ -33,6 +33,7 @@ import LandingsTab from "../components/landing/LandingsTab";
 import Experiments from "../components/optimization/Experiments";
 import LivePatches from "../components/optimization/LivePatches";
 import OptimizationSection from "../components/optimization/OptimizationSection";
+import PrivacyTab from "../components/privacy/PrivacyTab";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
 import { api, formatDuration, type Site } from "../lib/api";
 
@@ -50,7 +51,7 @@ export default function SiteDetail() {
   const [days, setDays] = useState(30);
   // Tab activ: dashboard-urile clasice („Analize") vs noul strat „Optimizare".
   const [tab, setTab] = useState<
-    "analytics" | "optimize" | "landings" | "live" | "experiments"
+    "analytics" | "optimize" | "landings" | "live" | "experiments" | "privacy"
   >("analytics");
   const [heatPath, setHeatPath] = useState<string>("");
   const [scrollPath, setScrollPath] = useState<string>("");
@@ -270,6 +271,7 @@ export default function SiteDetail() {
           { key: "landings", label: "Landinguri" },
           { key: "live", label: "Aplicare live" },
           { key: "experiments", label: "Experimente A/B" },
+          { key: "privacy", label: "Confidențialitate" },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -612,6 +614,9 @@ export default function SiteDetail() {
           <Experiments siteId={siteId} paths={pages.data ?? []} />
         </div>
       )}
+
+      {/* GDPR platformă Nivel 1 — consimțământ, retenție, drept la ștergere */}
+      {tab === "privacy" && <PrivacyTab site={site.data} />}
 
       {openSession && (
         <JourneyModal
