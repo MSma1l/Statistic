@@ -24,6 +24,10 @@ class SiteOut(BaseModel):
     domain: str
     min_engagement_seconds: int
     created_at: datetime
+    # Câmpuri de partajare (opționale pt. compatibilitate; completate în liste/detaliu).
+    access: str | None = None  # "owner" | "admin" | "shared"
+    can_edit: bool = True
+    owner_email: str | None = None
 
 
 class SiteWithSnippet(SiteOut):

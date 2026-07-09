@@ -14,6 +14,7 @@ from app.api import (
     gallery,
     links,
     redirect,
+    shares,
     sites,
 )
 from app.config import settings
@@ -26,6 +27,7 @@ from app.models import (  # noqa: F401
     GalleryImage,
     LinkVisit,
     PageSnapshot,
+    ResourceShare,
     Site,
     TrackedLink,
     User,
@@ -54,6 +56,10 @@ _MIGRATIONS = [
     # PERFORMANȚĂ: index aliniat la filtrul folosit de toate rapoartele
     # (site_id + type + created_at). Acoperă summary/timeseries/engagement etc.
     "CREATE INDEX IF NOT EXISTS ix_events_site_type_created ON events (site_id, type, created_at)",
+    # Partajare per-resursă: indexuri pentru DB-urile deja existente (create_all
+    # acoperă tabelul nou; aici doar ne asigurăm de indexuri pe baze vechi).
+    "CREATE INDEX IF NOT EXISTS ix_resource_shares_user ON resource_shares (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_resource_shares_resource ON resource_shares (resource_type, resource_id)",
 ]
 
 
@@ -99,6 +105,7 @@ app.include_router(sites.router)
 app.include_router(analytics.router)
 app.include_router(admin_settings.router)
 app.include_router(links.router)
+app.include_router(shares.router)
 app.include_router(gallery.router)
 app.include_router(collect.router)
 app.include_router(redirect.router)

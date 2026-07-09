@@ -35,7 +35,29 @@ export function canLinksArea(user: User | null): boolean {
   return can(user, "links") || can(user, "qr");
 }
 
-export interface Site {
+/** Nivelul de acces al utilizatorului curent asupra unei resurse. */
+export type Access = "owner" | "admin" | "shared";
+
+/** Câmpuri comune de partajare atașate resurselor (site-uri, linkuri). */
+export interface Shareable {
+  /** Cum ajunge utilizatorul curent la resursă. */
+  access?: Access;
+  /** Poate modifica resursa (PATCH). */
+  can_edit?: boolean;
+  /** Emailul proprietarului resursei. */
+  owner_email?: string;
+}
+
+/** O intrare de partajare: cu cine e partajată o resursă. */
+export interface Share {
+  id: number;
+  user_id: number;
+  user_email: string;
+  can_edit: boolean;
+  created_at: string;
+}
+
+export interface Site extends Shareable {
   id: number;
   site_key: string;
   name: string;
@@ -45,7 +67,7 @@ export interface Site {
   snippet?: string;
 }
 
-export interface TrackedLink {
+export interface TrackedLink extends Shareable {
   id: number;
   slug: string;
   destination_url: string;
@@ -90,6 +112,41 @@ export function formatDuration(seconds: number): string {
   if (m < 60) return rem ? `${m}m ${rem}s` : `${m}m`;
   const h = Math.floor(m / 60);
   return `${h}h ${m % 60}m`;
+}
+
+export type ResourceType = "site" | "link";
+
+/** Listează cu cine e partajată o resursă (owner-ul ei sau un admin). */
+export async function listShares(
+  resourceType: ResourceType,
+  resourceId: number
+): Promise<Share[]> {
+  const { data } = await api.get<Share[]>("/api/shares", {
+    params: { resource_type: resourceType, resource_id: resourceId },
+  });
+  return data;
+}
+
+/** Partajează o resursă cu un utilizator. */
+export async function createShare(payload: {
+  resource_type: ResourceType;
+  resource_id: number;
+  user_id: number;
+  can_edit: boolean;
+}): Promise<Share> {
+  const { data } = await api.post<Share>("/api/shares", payload);
+  return data;
+}
+
+/** Schimbă dreptul de editare al unei partajări existente. */
+export async function updateShare(id: number, can_edit: boolean): Promise<Share> {
+  const { data } = await api.patch<Share>(`/api/shares/${id}`, { can_edit });
+  return data;
+}
+
+/** Revocă o partajare. */
+export async function deleteShare(id: number): Promise<void> {
+  await api.delete(`/api/shares/${id}`);
 }
 
 export function extractError(err: unknown, fallback = "A apărut o eroare"): string {

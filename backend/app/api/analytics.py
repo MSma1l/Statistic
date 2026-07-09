@@ -5,8 +5,9 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_cap
+from app.core.access import can_view
 from app.database import get_db
-from app.models import Event, PageSnapshot, Site, User
+from app.models import Event, PageSnapshot, ResourceShare, Site, User
 
 # Captură pagină: tipuri acceptate + limită de mărime.
 _SNAPSHOT_TYPES = {"image/png", "image/jpeg", "image/webp"}
@@ -20,10 +21,26 @@ router = APIRouter(
 
 
 async def _owned_site(site_id: int, user: User, db: AsyncSession) -> Site:
+    """Site pe care userul îl poate VEDEA (owner / admin / partajat), altfel 404."""
     site = await db.get(Site, site_id)
-    if not site or site.owner_id != user.id:
+    if not site or not await can_view("site", site.id, site.owner_id, user, db):
         raise HTTPException(status_code=404, detail="Site inexistent")
     return site
+
+
+def _visible_site_ids(user: User):
+    """Subquery cu ID-urile site-urilor vizibile: admin=toate, altfel proprii+partajate."""
+    if user.is_admin:
+        return select(Site.id).scalar_subquery()
+    shared = select(ResourceShare.resource_id).where(
+        ResourceShare.resource_type == "site",
+        ResourceShare.user_id == user.id,
+    )
+    return (
+        select(Site.id)
+        .where((Site.owner_id == user.id) | (Site.id.in_(shared)))
+        .scalar_subquery()
+    )
 
 
 def _since(days: int) -> datetime:
@@ -38,10 +55,11 @@ async def pixel_overview(
 ):
     """Statistici agregate peste TOATE site-urile userului (tab-ul Pixel din dashboard)."""
     since = _since(days)
-    owned = select(Site.id).where(Site.owner_id == user.id).scalar_subquery()
+    # Admin vede toate site-urile; userul vede proprii + cele partajate cu el.
+    owned = _visible_site_ids(user)
 
     sites_count = await db.scalar(
-        select(func.count()).where(Site.owner_id == user.id)
+        select(func.count()).select_from(Site).where(Site.id.in_(owned))
     )
 
     # Contoare globale (o singură scanare).
@@ -67,7 +85,7 @@ async def pixel_overview(
     top_site_rows = await db.execute(
         select(Site.id, Site.name, Site.domain, pv.label("views"))
         .outerjoin(Event, Event.site_id == Site.id)
-        .where(Site.owner_id == user.id)
+        .where(Site.id.in_(owned))
         .group_by(Site.id)
         .order_by(pv.desc())
         .limit(8)

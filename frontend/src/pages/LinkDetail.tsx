@@ -21,6 +21,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import SharePanel from "../components/SharePanel";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
 import {
   api,
@@ -29,12 +30,14 @@ import {
   type GalleryList,
   type TrackedLink,
 } from "../lib/api";
+import { useAuth } from "../lib/auth";
 
 export default function LinkDetail() {
   const { id } = useParams();
   const linkId = Number(id);
   const nav = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [form, setForm] = useState({
     destination_url: "",
     name: "",
@@ -137,6 +140,14 @@ export default function LinkDetail() {
   if (link.isLoading) return <Spinner />;
   if (!link.data) return <p>Link inexistent.</p>;
 
+  // Drepturi asupra resursei. Câmpurile de partajare pot lipsi (backend vechi) →
+  // presupunem permis, ca înainte de partajare.
+  const canEdit = link.data.can_edit !== false;
+  const isShared = link.data.access === "shared";
+  const canManage = !!user?.is_admin || link.data.access === "owner";
+  const notMine =
+    link.data.access === "admin" || link.data.access === "shared";
+
   return (
     <div>
       <button
@@ -149,10 +160,24 @@ export default function LinkDetail() {
       <h1 className="text-2xl font-bold text-slate-900">
         {link.data.name || link.data.slug}
       </h1>
-      <div className="mb-6 flex items-center gap-2 text-sm">
+      <div className="flex items-center gap-2 text-sm">
         <span className="text-brand-600">{link.data.short_url}</span>
         <CopyButton value={link.data.short_url} label="Link" />
       </div>
+      {notMine && link.data.owner_email && (
+        <p className="mt-1 text-xs text-slate-400">
+          Proprietar: {link.data.owner_email}
+          {isShared && !canEdit ? " · doar citire" : ""}
+        </p>
+      )}
+      <div className="mb-6" />
+
+      <SharePanel
+        resourceType="link"
+        resourceId={linkId}
+        ownerEmail={link.data.owner_email}
+        canManage={canManage}
+      />
 
       <div className="mb-6 grid grid-cols-3 gap-4">
         <StatCard label="Total intrări" value={stats.data?.total ?? "—"} icon={<MousePointerClick size={18} />} />
@@ -188,7 +213,12 @@ export default function LinkDetail() {
           </div>
         </div>
 
-        {/* Editare completă */}
+        {/* Editare completă (doar dacă ai drept de editare) */}
+        {!canEdit ? (
+          <div className="card col-span-2 flex items-center justify-center text-center text-sm text-slate-400">
+            Ai acces doar de vizualizare la acest link.
+          </div>
+        ) : (
         <div className="card col-span-2 space-y-3">
           <h2 className="font-semibold text-slate-800">Editează</h2>
 
@@ -296,16 +326,19 @@ export default function LinkDetail() {
             <button className="btn-primary" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
               <Save size={16} /> Salvează
             </button>
-            <button
-              className="btn-danger"
-              onClick={() => {
-                if (confirm("Ștergi acest link și statisticile lui?")) delMut.mutate();
-              }}
-            >
-              <Trash2 size={16} /> Șterge
-            </button>
+            {!isShared && (
+              <button
+                className="btn-danger"
+                onClick={() => {
+                  if (confirm("Ștergi acest link și statisticile lui?")) delMut.mutate();
+                }}
+              >
+                <Trash2 size={16} /> Șterge
+              </button>
+            )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Evoluție vizite */}

@@ -77,6 +77,39 @@ describe("Sites", () => {
     expect(screen.getByRole("button", { name: /^Creează$/ })).toBeDisabled();
   });
 
+  it("afișează badge-uri în funcție de access", async () => {
+    server.use(
+      http.get(`${BASE}/api/sites`, () =>
+        HttpResponse.json([
+          site({ id: 1, name: "Al meu", access: "owner", can_edit: true }),
+          site({
+            id: 2,
+            name: "Ca admin",
+            access: "admin",
+            can_edit: true,
+            owner_email: "vlad@test.ro",
+          }),
+          site({
+            id: 3,
+            name: "Partajat RO",
+            access: "shared",
+            can_edit: false,
+            owner_email: "ana@test.ro",
+          }),
+        ])
+      )
+    );
+    renderWithProviders(<Sites />, { withAuth: false });
+
+    // owner → fără badge
+    expect(await screen.findByText("Al meu")).toBeInTheDocument();
+    // admin → „Al lui {owner_email}"
+    expect(screen.getByText("Al lui vlad@test.ro")).toBeInTheDocument();
+    // shared fără can_edit → „Partajat" + „doar citire"
+    expect(screen.getByText("Partajat")).toBeInTheDocument();
+    expect(screen.getByText("doar citire")).toBeInTheDocument();
+  });
+
   it("afișează eroarea de la server la creare eșuată", async () => {
     server.use(
       http.get(`${BASE}/api/sites`, () => HttpResponse.json([])),

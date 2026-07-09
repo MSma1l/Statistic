@@ -29,8 +29,10 @@ import {
 } from "recharts";
 import HeatmapOverlay from "../components/HeatmapOverlay";
 import JourneyModal from "../components/JourneyModal";
+import SharePanel from "../components/SharePanel";
 import { CopyButton, Spinner, StatCard } from "../components/ui";
 import { api, formatDuration, type Site } from "../lib/api";
+import { useAuth } from "../lib/auth";
 
 const RANGES = [
   { label: "7 zile", value: 7 },
@@ -43,6 +45,7 @@ export default function SiteDetail() {
   const siteId = Number(id);
   const nav = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [days, setDays] = useState(30);
   const [heatPath, setHeatPath] = useState<string>("");
   const [scrollPath, setScrollPath] = useState<string>("");
@@ -145,6 +148,14 @@ export default function SiteDetail() {
   if (site.isLoading) return <Spinner />;
   if (!site.data) return <p>Site inexistent.</p>;
 
+  // Drepturi asupra resursei. `can_edit`/`access` pot lipsi (backend vechi) →
+  // presupunem permis (comportament de dinainte de partajare).
+  const canEdit = site.data.can_edit !== false;
+  const isShared = site.data.access === "shared";
+  const canManage = !!user?.is_admin || site.data.access === "owner";
+  const notMine =
+    site.data.access === "admin" || site.data.access === "shared";
+
   return (
     <div>
       <button
@@ -203,20 +214,22 @@ export default function SiteDetail() {
             <>
               <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
                 {site.data.name}
-                <button
-                  className="text-slate-300 hover:text-brand-600"
-                  title="Editează"
-                  onClick={() => {
-                    setEdit({
-                      name: site.data!.name,
-                      domain: site.data!.domain,
-                      min_engagement_seconds: site.data!.min_engagement_seconds,
-                    });
-                    setEditing(true);
-                  }}
-                >
-                  <Pencil size={16} />
-                </button>
+                {canEdit && (
+                  <button
+                    className="text-slate-300 hover:text-brand-600"
+                    title="Editează"
+                    onClick={() => {
+                      setEdit({
+                        name: site.data!.name,
+                        domain: site.data!.domain,
+                        min_engagement_seconds: site.data!.min_engagement_seconds,
+                      });
+                      setEditing(true);
+                    }}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
               </h1>
               <p className="text-sm text-slate-500">
                 {site.data.domain || "—"}
@@ -224,6 +237,12 @@ export default function SiteDetail() {
                   · prag atenție: {site.data.min_engagement_seconds}s
                 </span>
               </p>
+              {notMine && site.data.owner_email && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Proprietar: {site.data.owner_email}
+                  {isShared && !canEdit ? " · doar citire" : ""}
+                </p>
+              )}
             </>
           )}
         </div>
@@ -243,16 +262,25 @@ export default function SiteDetail() {
               </button>
             ))}
           </div>
-          <button
-            className="btn-danger"
-            onClick={() => {
-              if (confirm("Ștergi acest site și toate datele lui?")) delMut.mutate();
-            }}
-          >
-            <Trash2 size={16} />
-          </button>
+          {!isShared && (
+            <button
+              className="btn-danger"
+              onClick={() => {
+                if (confirm("Ștergi acest site și toate datele lui?")) delMut.mutate();
+              }}
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
         </div>
       </div>
+
+      <SharePanel
+        resourceType="site"
+        resourceId={siteId}
+        ownerEmail={site.data.owner_email}
+        canManage={canManage}
+      />
 
       {/* Snippet de instalat */}
       <div className="card mb-6">

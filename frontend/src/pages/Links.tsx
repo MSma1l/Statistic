@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LinkIcon, MapPin, Plus, QrCode } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { CopyButton, EmptyState, PageHeader, Spinner } from "../components/ui";
+import {
+  AccessBadge,
+  CopyButton,
+  EmptyState,
+  PageHeader,
+  Spinner,
+} from "../components/ui";
 import {
   api,
   API_URL,
@@ -232,6 +238,15 @@ export default function Links() {
                     </span>
                   )}
                 </Link>
+                {l.access && l.access !== "owner" && (
+                  <div className="mt-1">
+                    <AccessBadge
+                      access={l.access}
+                      canEdit={l.can_edit}
+                      ownerEmail={l.owner_email}
+                    />
+                  </div>
+                )}
                 <div className="truncate text-sm text-brand-600">{l.short_url}</div>
                 <div className="truncate text-xs text-slate-400">
                   → {l.destination_url}

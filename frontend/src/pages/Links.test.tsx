@@ -56,6 +56,37 @@ describe("Links", () => {
     expect(screen.getByText("10")).toBeInTheDocument();
   });
 
+  it("afișează badge-uri în funcție de access", async () => {
+    asAdmin();
+    server.use(
+      http.get(`${BASE}/api/links`, () =>
+        HttpResponse.json([
+          link({ id: 1, name: "Al meu", access: "owner", can_edit: true }),
+          link({
+            id: 2,
+            name: "Ca admin",
+            access: "admin",
+            can_edit: true,
+            owner_email: "vlad@test.ro",
+          }),
+          link({
+            id: 3,
+            name: "Partajat RO",
+            access: "shared",
+            can_edit: false,
+            owner_email: "ana@test.ro",
+          }),
+        ])
+      )
+    );
+    renderWithProviders(<Links />);
+
+    expect(await screen.findByText("Al meu")).toBeInTheDocument();
+    expect(screen.getByText("Al lui vlad@test.ro")).toBeInTheDocument();
+    expect(screen.getByText("Partajat")).toBeInTheDocument();
+    expect(screen.getByText("doar citire")).toBeInTheDocument();
+  });
+
   it("butonul de creare e dezactivat fără slug + destinație (validare)", async () => {
     asAdmin();
     server.use(http.get(`${BASE}/api/links`, () => HttpResponse.json([])));

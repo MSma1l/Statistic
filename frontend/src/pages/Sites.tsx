@@ -3,7 +3,7 @@ import { Globe, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, extractError, type Site } from "../lib/api";
-import { EmptyState, PageHeader, Spinner } from "../components/ui";
+import { AccessBadge, EmptyState, PageHeader, Spinner } from "../components/ui";
 
 export default function Sites() {
   const qc = useQueryClient();
@@ -99,6 +99,13 @@ export default function Sites() {
               <div className="flex items-center gap-2 text-brand-600">
                 <Globe size={18} />
                 <span className="font-semibold text-slate-900">{s.name}</span>
+              </div>
+              <div className="mt-2">
+                <AccessBadge
+                  access={s.access}
+                  canEdit={s.can_edit}
+                  ownerEmail={s.owner_email}
+                />
               </div>
               <p className="mt-1 text-sm text-slate-500">{s.domain || "—"}</p>
               <p className="mt-3 font-mono text-xs text-slate-400">

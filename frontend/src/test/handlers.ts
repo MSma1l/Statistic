@@ -31,6 +31,7 @@ export const handlers = [
 
   http.get(`${BASE}/api/sites`, () => HttpResponse.json([])),
   http.get(`${BASE}/api/links`, () => HttpResponse.json([])),
+  http.get(`${BASE}/api/shares`, () => HttpResponse.json([])),
   http.get(`${BASE}/api/gallery`, () =>
     HttpResponse.json({ images: [], used_bytes: 0, limit_bytes: 26214400 })
   ),

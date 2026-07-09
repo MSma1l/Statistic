@@ -1,15 +1,16 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, has_cap, require_links_area
 from app.config import settings
+from app.core.access import access_level, can_manage
 from app.core.qrgen import qr_png_bytes, qr_svg_bytes
 from app.core.sanitize import clean_text
 from app.database import get_db
-from app.models import GalleryImage, LinkVisit, TrackedLink, User
+from app.models import GalleryImage, LinkVisit, ResourceShare, TrackedLink, User
 from app.schemas.link import LinkCreate, LinkOut, LinkUpdate, LinkWithUrls
 
 router = APIRouter(
@@ -33,6 +34,17 @@ def _check_kind(user: User, kind: str) -> None:
         raise HTTPException(status_code=403, detail="Nu ai permisiunea pentru linkuri")
 
 
+def _visible_link_filter(user: User):
+    """Filtru SQL pentru linkurile vizibile: admin=toate, altfel proprii+partajate."""
+    if user.is_admin:
+        return True
+    shared = select(ResourceShare.resource_id).where(
+        ResourceShare.resource_type == "link",
+        ResourceShare.user_id == user.id,
+    )
+    return or_(TrackedLink.owner_id == user.id, TrackedLink.id.in_(shared))
+
+
 def _short_url(slug: str) -> str:
     return f"{settings.public_url}/l/{slug}"
 
@@ -41,23 +53,43 @@ def _qr_target(slug: str) -> str:
     return f"{settings.public_url}/q/{slug}"
 
 
-def _to_with_urls(link: TrackedLink, total: int = 0) -> LinkWithUrls:
+def _to_with_urls(
+    link: TrackedLink,
+    total: int = 0,
+    access: str | None = None,
+    can_edit: bool = True,
+    owner_email: str | None = None,
+) -> LinkWithUrls:
     return LinkWithUrls(
-        **LinkOut.model_validate(link).model_dump(),
+        **LinkOut.model_validate(link).model_dump(
+            exclude={"access", "can_edit", "owner_email"}
+        ),
         short_url=_short_url(link.slug),
         # qr_url rămâne pe API (imaginea e servită autentificat din dashboard)
         qr_url=f"{settings.BASE_URL}/api/links/{link.id}/qr.png",
         total_visits=total,
+        access=access,
+        can_edit=can_edit,
+        owner_email=owner_email,
     )
 
 
-async def _owned_link(link_id: int, user: User, db: AsyncSession) -> TrackedLink:
+async def _accessible_link(
+    link_id: int, user: User, db: AsyncSession
+) -> tuple[TrackedLink, str, bool]:
+    """Link pe care userul îl poate VEDEA (owner / admin / partajat), altfel 404.
+
+    Întoarce (link, access, can_edit).
+    """
     link = await db.get(TrackedLink, link_id)
-    if not link or link.owner_id != user.id:
+    if not link:
         raise HTTPException(status_code=404, detail="Link inexistent")
     if link.kind not in _allowed_kinds(user):
         raise HTTPException(status_code=404, detail="Link inexistent")
-    return link
+    access, editable = await access_level("link", link.id, link.owner_id, user, db)
+    if access is None:
+        raise HTTPException(status_code=404, detail="Link inexistent")
+    return link, access, editable
 
 
 async def _validate_logo(logo_id: int | None, user: User, db: AsyncSession) -> int | None:
@@ -81,17 +113,68 @@ async def _logo_bytes(link: TrackedLink, db: AsyncSession) -> bytes | None:
 async def list_links(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(TrackedLink, func.count(LinkVisit.id))
-        .outerjoin(LinkVisit, LinkVisit.link_id == TrackedLink.id)
-        .where(
-            TrackedLink.owner_id == user.id,
-            TrackedLink.kind.in_(_allowed_kinds(user)),
+    kinds = _allowed_kinds(user)
+    owner = User.__table__.alias("owner_u")
+    base = (
+        select(
+            TrackedLink,
+            func.count(LinkVisit.id).label("total"),
+            owner.c.email.label("owner_email"),
         )
-        .group_by(TrackedLink.id)
+        .select_from(TrackedLink)
+        .join(owner, owner.c.id == TrackedLink.owner_id)
+        .outerjoin(LinkVisit, LinkVisit.link_id == TrackedLink.id)
+        .where(TrackedLink.kind.in_(kinds))
+        .group_by(TrackedLink.id, owner.c.email)
         .order_by(TrackedLink.created_at.desc())
     )
-    return [_to_with_urls(link, total) for link, total in result.all()]
+
+    if user.is_admin:
+        # Admin vede toate linkurile.
+        result = await db.execute(base)
+        return [
+            _to_with_urls(
+                link,
+                total,
+                "owner" if link.owner_id == user.id else "admin",
+                True,
+                owner_email,
+            )
+            for link, total, owner_email in result.all()
+        ]
+
+    # Userul obișnuit: proprii + cele partajate cu el.
+    shared_ids = select(ResourceShare.resource_id).where(
+        ResourceShare.resource_type == "link",
+        ResourceShare.user_id == user.id,
+    )
+    result = await db.execute(
+        base.where(or_(TrackedLink.owner_id == user.id, TrackedLink.id.in_(shared_ids)))
+    )
+    rows = result.all()
+    # Preluăm can_edit pentru linkurile partajate.
+    shares = {
+        s.resource_id: s.can_edit
+        for s in (
+            await db.execute(
+                select(ResourceShare).where(
+                    ResourceShare.resource_type == "link",
+                    ResourceShare.user_id == user.id,
+                )
+            )
+        ).scalars()
+    }
+    out = []
+    for link, total, owner_email in rows:
+        if link.owner_id == user.id:
+            out.append(_to_with_urls(link, total, "owner", True, owner_email))
+        else:
+            out.append(
+                _to_with_urls(
+                    link, total, "shared", bool(shares.get(link.id, False)), owner_email
+                )
+            )
+    return out
 
 
 @router.post("", response_model=LinkWithUrls, status_code=status.HTTP_201_CREATED)
@@ -120,7 +203,7 @@ async def create_link(
     db.add(link)
     await db.flush()
     await db.refresh(link)
-    return _to_with_urls(link, 0)
+    return _to_with_urls(link, 0, "owner", True, user.email)
 
 
 @router.get("/overview")
@@ -132,16 +215,18 @@ async def links_overview(
     """Statistici agregate peste toate linkurile userului (pentru dashboard)."""
     since = datetime.now(timezone.utc) - timedelta(days=days)
     kinds = _allowed_kinds(user)
+    # Linkuri vizibile: admin=toate, altfel proprii + partajate.
+    visible = _visible_link_filter(user)
     owned = (
         select(TrackedLink.id)
-        .where(TrackedLink.owner_id == user.id, TrackedLink.kind.in_(kinds))
+        .where(TrackedLink.kind.in_(kinds), visible)
         .scalar_subquery()
     )
 
     links_count = await db.scalar(
-        select(func.count()).where(
-            TrackedLink.owner_id == user.id, TrackedLink.kind.in_(kinds)
-        )
+        select(func.count())
+        .select_from(TrackedLink)
+        .where(TrackedLink.kind.in_(kinds), visible)
     )
     total = await db.scalar(select(func.count()).where(LinkVisit.link_id.in_(owned)))
     scans = await db.scalar(
@@ -168,7 +253,7 @@ async def links_overview(
                 func.count(LinkVisit.id).label("visits"),
             )
             .outerjoin(LinkVisit, LinkVisit.link_id == TrackedLink.id)
-            .where(TrackedLink.owner_id == user.id, TrackedLink.kind == kind)
+            .where(TrackedLink.kind == kind, visible)
             .group_by(TrackedLink.id)
             .order_by(func.count(LinkVisit.id).desc())
             .limit(6)
@@ -193,7 +278,7 @@ async def links_overview(
         select(TrackedLink.location_label, func.count(LinkVisit.id).label("c"))
         .join(LinkVisit, LinkVisit.link_id == TrackedLink.id)
         .where(
-            TrackedLink.owner_id == user.id,
+            visible,
             TrackedLink.kind.in_(kinds),
             LinkVisit.created_at >= since,
         )
@@ -233,11 +318,14 @@ async def get_link(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    link = await _owned_link(link_id, user, db)
+    link, access, editable = await _accessible_link(link_id, user, db)
     total = await db.scalar(
         select(func.count()).where(LinkVisit.link_id == link.id)
     )
-    return _to_with_urls(link, total or 0)
+    owner = await db.get(User, link.owner_id)
+    return _to_with_urls(
+        link, total or 0, access, editable, owner.email if owner else None
+    )
 
 
 @router.patch("/{link_id}", response_model=LinkWithUrls)
@@ -247,7 +335,9 @@ async def update_link(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    link = await _owned_link(link_id, user, db)
+    link, access, editable = await _accessible_link(link_id, user, db)
+    if not editable:
+        raise HTTPException(status_code=403, detail="Nu ai drept de editare")
     if payload.destination_url is not None:
         link.destination_url = payload.destination_url
     if payload.name is not None:
@@ -268,7 +358,10 @@ async def update_link(
     await db.flush()
     await db.refresh(link)
     total = await db.scalar(select(func.count()).where(LinkVisit.link_id == link.id))
-    return _to_with_urls(link, total or 0)
+    owner = await db.get(User, link.owner_id)
+    return _to_with_urls(
+        link, total or 0, access, editable, owner.email if owner else None
+    )
 
 
 @router.delete("/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -277,7 +370,16 @@ async def delete_link(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    link = await _owned_link(link_id, user, db)
+    link, access, _ = await _accessible_link(link_id, user, db)
+    # Ștergerea e permisă DOAR owner-ului sau adminului.
+    if not can_manage(access):
+        raise HTTPException(status_code=403, detail="Doar proprietarul poate șterge")
+    await db.execute(
+        delete(ResourceShare).where(
+            ResourceShare.resource_type == "link",
+            ResourceShare.resource_id == link.id,
+        )
+    )
     await db.delete(link)
 
 
@@ -287,7 +389,7 @@ async def qr_png(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    link = await _owned_link(link_id, user, db)
+    link, _access, _editable = await _accessible_link(link_id, user, db)
     logo = await _logo_bytes(link, db)
     return Response(content=qr_png_bytes(_qr_target(link.slug), logo), media_type="image/png")
 
@@ -298,7 +400,7 @@ async def qr_svg(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    link = await _owned_link(link_id, user, db)
+    link, _access, _editable = await _accessible_link(link_id, user, db)
     logo = await _logo_bytes(link, db)
     return Response(
         content=qr_svg_bytes(_qr_target(link.slug), logo), media_type="image/svg+xml"
@@ -312,7 +414,7 @@ async def link_stats(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    link = await _owned_link(link_id, user, db)
+    link, _access, _editable = await _accessible_link(link_id, user, db)
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
     total = await db.scalar(select(func.count()).where(LinkVisit.link_id == link.id))

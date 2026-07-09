@@ -1,5 +1,44 @@
 import { Check, Copy } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import type { Access } from "../lib/api";
+
+/**
+ * Etichetă care arată cum ajunge utilizatorul curent la o resursă:
+ * - `owner` → nimic (e a lui, nu are rost o etichetă).
+ * - `admin` → „Al lui {owner_email}" (adminul vede resursele altora).
+ * - `shared` → „Partajat" (+ „doar citire" dacă nu poate edita).
+ */
+export function AccessBadge({
+  access,
+  canEdit,
+  ownerEmail,
+}: {
+  access?: Access;
+  canEdit?: boolean;
+  ownerEmail?: string;
+}) {
+  if (!access || access === "owner") return null;
+  if (access === "admin") {
+    return (
+      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+        Al lui {ownerEmail || "alt utilizator"}
+      </span>
+    );
+  }
+  // shared
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
+        Partajat
+      </span>
+      {!canEdit && (
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+          doar citire
+        </span>
+      )}
+    </span>
+  );
+}
 
 export function PageHeader({
   title,
