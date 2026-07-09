@@ -9,9 +9,14 @@ Autentificare pe invitație (fără înregistrare publică) + **guard anti-SQLi/
 
 ## 📚 Documentație
 
-- [`docs/DOCUMENTATIE.md`](docs/DOCUMENTATIE.md) — cum funcționează aplicația, arhitectură, ghid de utilizare, referință API.
-- [`docs/INVATARE.md`](docs/INVATARE.md) — ghid de învățare: cum e construit proiectul, sintaxa explicată pas cu pas, exerciții.
-- [`docs/VERIFICARE.md`](docs/VERIFICARE.md) — cum verifici că totul funcționează (test automat `bash examples/test_e2e.sh` + checklist manual).
+Punct de intrare: [`docs/README.md`](docs/README.md) — indexul master al întregii documentații (ansamblu, backend, frontend, operare, învățare & viziune).
+
+Linkuri cheie:
+- [`docs/01-viziune-si-idee.md`](docs/01-viziune-si-idee.md) — ideea produsului și conceptul „slug permanent, destinație editabilă".
+- [`docs/02-arhitectura.md`](docs/02-arhitectura.md) — arhitectura de ansamblu (3 servicii, flux de date, porturi).
+- [`docs/STARE-PROIECT.md`](docs/STARE-PROIECT.md) — ce e complet, în lucru și ce lipsește.
+- [`docs/operare/01-pornire-locala.md`](docs/operare/01-pornire-locala.md) · [`02-verificare-si-testare.md`](docs/operare/02-verificare-si-testare.md) · [`03-deployment.md`](docs/operare/03-deployment.md) — pornire, testare, deploy.
+- [`docs/INVATARE.md`](docs/INVATARE.md) — ghid de învățare pas cu pas.
 
 ## Stack
 
@@ -64,7 +69,7 @@ Slug-ul nu se schimbă niciodată (QR valabil pe viață), dar destinația e edi
 
 Deployment pe server cu **un singur domeniu** și **nginx dispecer** pe host
 (rutează `/api`, `/auth`, `/px`, `/l`, `/q` spre backend, restul spre dashboard) —
-ghid complet pas cu pas în [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+ghid complet pas cu pas în [`docs/operare/03-deployment.md`](docs/operare/03-deployment.md).
 
 Pe scurt:
 

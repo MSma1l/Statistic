@@ -100,11 +100,14 @@ class SecurityGuardMiddleware:
             await self._reject(send)
             return
 
-        # 2) Citește corpul (îl re-injectăm pentru handler-ul real).
-        #    Pe rutele relaxate (ex. /px/collect, cea mai frecventă) NU bufferizăm
-        #    corpul — îl lăsăm să curgă direct, economisind o copie pe fiecare beacon.
+        # 2) Bufferizează corpul o singură dată și îl re-injectează pentru handler.
+        #    Bufferizăm pentru TOATE metodele cu corp (inclusiv rutele relaxate ca
+        #    /px/collect): slowapi + FastAPI pot citi corpul de mai multe ori, iar
+        #    un replay IDEMPOTENT evită pierderea lui. Diferența pentru rutele
+        #    relaxate/binare e doar că NU scanăm conținutul (nu că nu-l bufferizăm).
         body = b""
-        if not relaxed and scope["method"] in ("POST", "PUT", "PATCH", "DELETE"):
+        has_body = scope["method"] in ("POST", "PUT", "PATCH", "DELETE")
+        if has_body:
             chunks: list[bytes] = []
             more = True
             while more:
@@ -113,20 +116,24 @@ class SecurityGuardMiddleware:
                 more = message.get("more_body", False)
             body = b"".join(chunks)
 
-            if not is_binary_body and body:
+            if not relaxed and not is_binary_body and body:
                 text = body.decode("utf-8", "ignore")
                 if is_malicious(text):
                     await self._reject(send)
                     return
 
-        sent_body = False
+        body_sent = False
 
         async def wrapped_receive() -> Message:
-            nonlocal sent_body
-            if not sent_body:
-                sent_body = True
+            nonlocal body_sent
+            if not body_sent:
+                body_sent = True
                 return {"type": "http.request", "body": body, "more_body": False}
-            return {"type": "http.disconnect"}
+            # Replay idempotent: la re-citiri întoarcem un corp gol TERMINAT
+            # (more_body=False), NU http.disconnect — altfel Starlette ar ridica
+            # ClientDisconnect la a doua citire și corpul ar ajunge gol (login 422,
+            # collect fără evenimente pe endpoint-urile cu rate-limit).
+            return {"type": "http.request", "body": b"", "more_body": False}
 
         async def wrapped_send(message: Message) -> None:
             if message["type"] == "http.response.start":
@@ -135,7 +142,7 @@ class SecurityGuardMiddleware:
                     headers[key] = value
             await send(message)
 
-        receive_fn = wrapped_receive if body else receive
+        receive_fn = wrapped_receive if has_body else receive
         await self.app(scope, receive_fn, wrapped_send)
 
     @staticmethod
