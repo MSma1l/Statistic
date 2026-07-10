@@ -116,6 +116,21 @@
     }, 1200);
   }
 
+  // Referrer-ul brut conține și query string-ul paginii de proveniență, unde
+  // ajung frecvent token-uri de reset, id-uri de sesiune sau adrese de email
+  // (ex. ...?email=ion@exemplu.md). Păstrăm doar originea și calea — atât cât
+  // trebuie ca să știm de unde a venit vizitatorul.
+  function safeReferrer() {
+    if (!document.referrer) return "";
+    try {
+      var u = new URL(document.referrer);
+      return u.origin + u.pathname;
+    } catch (e) {
+      return "";
+    }
+  }
+  var REFERRER = safeReferrer();
+
   function track(type, extra) {
     var ev = {
       // DOAR pathname (fără query): aceeași pagină deschisă cu UTM-uri diferite
@@ -123,7 +138,7 @@
       // capturate separat. Override-uit prin `extra.path` pentru engagement (SPA).
       type: type,
       path: location.pathname,
-      referrer: document.referrer || "",
+      referrer: REFERRER,
       session_id: sessionId,
       viewport_w: window.innerWidth,
       viewport_h: window.innerHeight,
@@ -262,7 +277,30 @@
         : "";
     }
     if (tag === "TEXTAREA" || tag === "SELECT" || isEditable(el)) return "";
-    return (el.innerText || el.textContent || "").trim();
+
+    // Trimitem DOAR eticheta unui control de interfață (link, buton), niciodată
+    // textul de conținut al paginii. Altfel un click pe un paragraf ar transmite
+    // ce scrie acolo — iar dacă pagina afișează date ale utilizatorului (nume,
+    // email, o comandă), acelea ar pleca spre server. Etichetele controalelor
+    // sunt scrise de site, nu de vizitator.
+    // `closest` urcă la control când s-a apăsat pe un <span> dinăuntrul lui.
+    var ctl = el.closest ? el.closest('a, button, summary, [role="button"]') : null;
+    if (!ctl) return "";
+    return (ctl.innerText || ctl.textContent || "").trim();
+  }
+
+  // Href-ul brut poate căra query string și fragment (token-uri, email-uri), iar
+  // schemele mailto:/tel: conțin date de contact. Reținem doar destinația:
+  // calea, plus originea când linkul duce în afara site-ului.
+  function safeHref(raw) {
+    if (!raw) return "";
+    try {
+      var u = new URL(raw, location.href);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return u.protocol;
+      return (u.origin === location.origin ? "" : u.origin) + u.pathname;
+    } catch (e) {
+      return "";
+    }
   }
 
   // --- Click + coordonate pentru heatmap + context (link/buton) ---
@@ -297,7 +335,7 @@
         // heatmap-ul peste pagina reală la proporțiile corecte.
         doc_w: docW,
         doc_h: docH,
-        props: { href: (href || "").slice(0, 512), tag: (el.tagName || "").toLowerCase() },
+        props: { href: safeHref(href).slice(0, 512), tag: (el.tagName || "").toLowerCase() },
       });
     },
     true

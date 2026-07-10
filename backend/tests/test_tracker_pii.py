@@ -1,14 +1,25 @@
-"""Gardă împotriva scurgerii de PII prin trackerul t.js.
+"""Gardă împotriva scurgerii de date prin trackerul t.js.
 
-Handlerul de click al trackerului citea `el.innerText || el.textContent || el.value`.
-Pentru `<input>` și `<textarea>` primele două sunt goale, deci se cădea pe `el.value`
-— adică exact ce tastase vizitatorul (nume, email, telefon, mesaj, chiar și parola
-dacă pixelul ajungea pe o pagină de login) pleca spre /px/collect ca `element_text`.
+Trackerul trebuie să trimită DOAR activitate (unde s-a dat click, cât s-a derulat,
+cât s-a stat pe pagină), niciodată conținut. Patru canale cărau date și au fost
+închise:
+
+1. `el.value` — handlerul citea `el.innerText || el.textContent || el.value`. Pentru
+   `<input>` primele două sunt goale, deci se cădea pe valoarea tastată de vizitator
+   (nume, email, telefon, mesaj, chiar parola pe o pagină de login).
+2. `element_text` de pe orice element — un click pe un paragraf trimitea textul lui.
+   Acum se trimite doar eticheta unui control de interfață (link, buton).
+3. `props.href` brut — cu query string și fragment (token-uri), plus scheme
+   `mailto:`/`tel:` care conțin date de contact.
+4. `document.referrer` brut — URL-ul complet al paginii de proveniență, inclusiv
+   query string-ul, unde ajung frecvent token-uri sau adrese de email.
 
 Acestea sunt aserțiuni pe sursă, nu teste de comportament: t.js rulează în browser,
 iar suita asta e pytest. Rolul lor e să prindă o revenire accidentală la vechiul
 tipar. Comportamentul a fost verificat separat, în jsdom: click pe input/textarea/
-select/contenteditable trimite `element_text: ""`, iar etichetele butoanelor rămân.
+select/contenteditable/paragraf trimite `element_text: ""`, un href cu token devine
+doar calea, `mailto:ion@exemplu.md` devine `mailto:`, iar referrer-ul își pierde
+query string-ul — în timp ce etichetele butoanelor și destinația linkurilor rămân.
 """
 
 from pathlib import Path
@@ -49,3 +60,20 @@ def test_campurile_de_formular_sunt_excluse(source: str) -> None:
 def test_singura_citire_de_value_e_pentru_eticheta_butoanelor(source: str) -> None:
     reads = [line.strip() for line in source.splitlines() if "el.value" in line and "//" not in line]
     assert reads == ['? (el.value || "").trim()'], reads
+
+
+def test_textul_vine_doar_de_pe_controale_de_interfata(source: str) -> None:
+    """Un click pe text de conținut nu are voie să trimită acel text."""
+    assert "closest('a, button, summary, [role=\"button\"]')" in source
+
+
+def test_hrefurile_sunt_curatate_de_query_si_scheme_de_contact(source: str) -> None:
+    assert "function safeHref(raw)" in source
+    assert "props: { href: safeHref(href)" in source
+
+
+def test_referrerul_este_curatat_de_query(source: str) -> None:
+    assert "function safeReferrer()" in source
+    assert "referrer: REFERRER," in source
+    # Referrer-ul brut nu mai are voie să ajungă direct în evenimente.
+    assert "referrer: document.referrer" not in source
