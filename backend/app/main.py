@@ -108,9 +108,16 @@ app.include_router(links.router)
 app.include_router(shares.router)
 app.include_router(gallery.router)
 app.include_router(collect.router)
-app.include_router(redirect.router)
 
 
+# CRITIC: rutele literale proprii (ex. /health) trebuie înregistrate ÎNAINTE de
+# `redirect.router`, care conține „catch-all"-ul GET /{slug}. Altfel catch-all-ul
+# ar umbri /health. (/docs, /openapi.json, /redoc sunt înregistrate automat de
+# FastAPI la construcție, deci sunt deja înaintea lui.)
 @app.get("/health", tags=["health"])
 async def health():
     return {"status": "ok"}
+
+
+# Ruta „curată" DOMENIU/<slug> — se include ULTIMA, ca să nu prindă alte căi.
+app.include_router(redirect.router)

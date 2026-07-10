@@ -100,14 +100,22 @@ OLD=$(curl -s -b $JAR $BASE/api/links | grep -o "\"id\":[0-9]*,\"slug\":\"$SLUG\
 LINK=$(curl -s -b $JAR -X POST $BASE/api/links -H "Content-Type: application/json" \
        -d "{\"slug\":\"$SLUG\",\"destination_url\":\"https://example.com/oferta\",\"name\":\"E2E\",\"location_label\":\"Test\"}")
 LID=$(printf '%s' "$LINK" | grep -o '"id":[0-9]*' | head -1 | sed 's/"id"://')
-contains "Link creat are short_url" "$LINK" "/l/$SLUG"
+# short_url curat: se termină în /<slug> ȘI NU conține prefixul /l/
+contains "Link creat are short_url curat (se termina in /$SLUG)" "$LINK" "\"short_url\":\"[^\"]*/$SLUG\""
+if printf '%s' "$LINK" | grep -q "/l/$SLUG"; then
+  echo "  ${RED}✗${N} short_url NU trebuie sa contina /l/"; fail=$((fail+1))
+else
+  echo "  ${GREEN}✓${N} short_url NU contine prefixul vechi /l/"; pass=$((pass+1))
+fi
 check "Slug duplicat -> 409" 409 "$(sc -b $JAR -X POST $BASE/api/links -H 'Content-Type: application/json' \
   -d "{\"slug\":\"$SLUG\",\"destination_url\":\"https://x.com\"}")"
 check "Slug invalid (cu spații) -> 422" 422 "$(sc -b $JAR -X POST $BASE/api/links -H 'Content-Type: application/json' \
   -d '{"slug":"slug invalid!","destination_url":"https://x.com"}')"
 
-contains "Redirect /l/ -> 302 spre destinație" "$(rd $BASE/l/$SLUG)" "302 https://example.com/oferta"
-contains "Redirect /q/ -> 302 spre destinație" "$(rd $BASE/q/$SLUG)" "302 https://example.com/oferta"
+contains "Redirect curat /$SLUG -> 302 spre destinație" "$(rd $BASE/$SLUG)" "302 https://example.com/oferta"
+contains "Redirect curat /$SLUG?q=1 -> 302 spre destinație" "$(rd "$BASE/$SLUG?q=1")" "302 https://example.com/oferta"
+contains "Redirect /l/ (compat) -> 302 spre destinație" "$(rd $BASE/l/$SLUG)" "302 https://example.com/oferta"
+contains "Redirect /q/ (compat) -> 302 spre destinație" "$(rd $BASE/q/$SLUG)" "302 https://example.com/oferta"
 STATS=$(curl -s -b $JAR "$BASE/api/links/$LID/stats")
 contains "Stats: 1 scanare QR" "$STATS" '"scans":1'
 contains "Stats: 1 click link" "$STATS" '"clicks":1'

@@ -46,11 +46,14 @@ def _visible_link_filter(user: User):
 
 
 def _short_url(slug: str) -> str:
-    return f"{settings.public_url}/l/{slug}"
+    # URL curat, fără prefix /l/: DOMENIU/<slug>
+    return f"{settings.public_url}/{slug}"
 
 
 def _qr_target(slug: str) -> str:
-    return f"{settings.public_url}/q/{slug}"
+    # URL curat pentru conținutul QR: marcajul invizibil ?q=1 deosebește
+    # scanarea (source=qr) de un click obișnuit (source=link).
+    return f"{settings.public_url}/{slug}?q=1"
 
 
 def _to_with_urls(

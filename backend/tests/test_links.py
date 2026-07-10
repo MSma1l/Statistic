@@ -1,6 +1,10 @@
-"""Teste pentru /api/links (linkuri + QR), redirect /l & /q, statistici, QR imagini."""
+"""Teste pentru /api/links (linkuri + QR), redirect curat /{slug} + /l & /q,
+statistici, QR imagini."""
 
 import pytest
+
+from app.api.links import _qr_target, _short_url
+from app.config import settings
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -19,8 +23,21 @@ async def test_creare_link_201_cu_urls(auth_client_factory, user):
     assert r.status_code == 201
     b = r.json()
     assert b["slug"] == "promo-vara"
-    assert b["short_url"].endswith("/l/promo-vara")
+    # URL curat, fără prefixul /l/: DOMENIU/<slug>
+    assert b["short_url"] == f"{settings.public_url}/promo-vara"
+    assert "/l/" not in b["short_url"]
     assert f"/api/links/{b['id']}/qr.png" in b["qr_url"]
+
+
+async def test_short_url_curat_fara_prefix():
+    assert _short_url("abc") == f"{settings.public_url}/abc"
+    assert "/l/" not in _short_url("abc")
+
+
+async def test_qr_target_are_marcaj_q():
+    # Conținutul QR e URL-ul curat + marcajul invizibil ?q=1 (deosebește scanarea)
+    assert _qr_target("abc") == f"{settings.public_url}/abc?q=1"
+    assert "/q/" not in _qr_target("abc")
 
 
 async def test_slug_duplicat_409(auth_client_factory, user):
@@ -118,6 +135,77 @@ async def test_redirect_slug_inexistent_302_home(client):
     r = await client.get("/l/nu-exista", follow_redirects=False)
     assert r.status_code == 302
     assert r.headers["location"] == "/"
+
+
+# --- Redirect CURAT /{slug} ---------------------------------------------------
+async def test_redirect_curat_302_si_click(client, auth_client_factory, user):
+    c = auth_client_factory(user)
+    lid = (
+        await _create_link(c, "curat-click", dest="https://curat.com")
+    ).json()["id"]
+
+    client.cookies.clear()
+    r = await client.get("/curat-click", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == "https://curat.com"
+
+    c = auth_client_factory(user)
+    stats = (await c.get(f"/api/links/{lid}/stats")).json()
+    assert stats["total"] == 1
+    assert stats["clicks"] == 1
+    assert stats["scans"] == 0
+
+
+async def test_redirect_curat_cu_q_302_si_scan(client, auth_client_factory, user):
+    c = auth_client_factory(user)
+    lid = (
+        await _create_link(c, "curat-scan", kind="qr", dest="https://scan.com")
+    ).json()["id"]
+
+    client.cookies.clear()
+    r = await client.get("/curat-scan?q=1", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == "https://scan.com"
+
+    c = auth_client_factory(user)
+    stats = (await c.get(f"/api/links/{lid}/stats")).json()
+    assert stats["total"] == 1
+    assert stats["scans"] == 1
+    assert stats["clicks"] == 0
+
+
+async def test_redirect_curat_slug_inexistent_404(client):
+    client.cookies.clear()
+    r = await client.get("/nu-exista-deloc", follow_redirects=False)
+    assert r.status_code == 404
+
+
+async def test_redirect_curat_slug_inactiv_404(client, auth_client_factory, user):
+    c = auth_client_factory(user)
+    lid = (await _create_link(c, "curat-inactiv")).json()["id"]
+    c = auth_client_factory(user)
+    await c.patch(f"/api/links/{lid}", json={"is_active": False})
+
+    client.cookies.clear()
+    r = await client.get("/curat-inactiv", follow_redirects=False)
+    assert r.status_code == 404
+
+
+async def test_health_nu_e_umbrit_de_catch_all(client):
+    """/health rămâne 200 (catch-all-ul /{slug} nu-l umbrește)."""
+    client.cookies.clear()
+    r = await client.get("/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
+
+
+async def test_cuvant_rezervat_nu_e_slug_404(client, auth_client_factory, user):
+    """Un cuvânt rezervat (ex. 'docs') nu e tratat ca slug chiar dacă ar exista."""
+    # Chiar dacă am crea un link cu slug rezervat, ruta curată dă 404.
+    client.cookies.clear()
+    r = await client.get("/api", follow_redirects=False)
+    # /api nu e o rută existentă și e cuvânt rezervat → nu redirectează
+    assert r.status_code == 404
 
 
 async def test_redirect_link_inactiv_302_home(client, auth_client_factory, user):
