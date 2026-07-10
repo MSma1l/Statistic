@@ -236,6 +236,35 @@
   };
   window.addEventListener("popstate", onSpaNavigate);
 
+  // Textul elementului apăsat — NICIODATĂ conținutul unui câmp de formular.
+  // `el.value` ar trimite spre /px/collect exact ce a tastat vizitatorul: nume,
+  // email, telefon, mesaj, chiar și parola dacă pixelul ajunge pe o pagină de
+  // login. Un click pe un câmp deja completat (repoziționare de cursor, revenire
+  // pe mobil, autofill) are ca țintă chiar acel input.
+  // Click-ul se înregistrează în continuare pentru heatmap, doar fără text.
+  function isEditable(el) {
+    // `isContentEditable` e calculat (moștenit de la părinți), dar lipsește în
+    // unele medii non-browser. Verificarea pe atribut, cu `closest`, acoperă și
+    // click-urile pe elementele dinăuntrul unei zone editabile.
+    if (el.isContentEditable) return true;
+    return !!(
+      el.closest && el.closest('[contenteditable=""], [contenteditable="true"]')
+    );
+  }
+
+  function clickText(el) {
+    var tag = (el.tagName || "").toUpperCase();
+    if (tag === "INPUT") {
+      // La <input type="button|submit|reset"> `value` este eticheta vizibilă,
+      // nu date introduse de utilizator — pe aceea o păstrăm.
+      return /^(button|submit|reset)$/i.test(el.type || "")
+        ? (el.value || "").trim()
+        : "";
+    }
+    if (tag === "TEXTAREA" || tag === "SELECT" || isEditable(el)) return "";
+    return (el.innerText || el.textContent || "").trim();
+  }
+
   // --- Click + coordonate pentru heatmap + context (link/buton) ---
   document.addEventListener(
     "click",
@@ -251,7 +280,7 @@
       );
       var x = (e.pageX / docW) * 100;
       var y = (e.pageY / docH) * 100;
-      var text = (el.innerText || el.textContent || el.value || "").trim();
+      var text = clickText(el);
       // Linkul cel mai apropiat (dacă s-a apăsat în interiorul unui <a>).
       var anchor = el.closest ? el.closest("a") : null;
       var href = anchor
